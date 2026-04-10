@@ -1,0 +1,23 @@
+# Dependency directories
+node_modules/
+npm-debug.log
+
+# docker file
+Dockerfile
+
+# Build outputs (Docker builds its own)
+dist/
+build/
+
+# Environment variables & Secrets
+.env
+.env.local
+
+# Git and OS files
+.git/
+.DS_Store
+README.md
+
+# ignore files
+.gitignore
+.dockerignore

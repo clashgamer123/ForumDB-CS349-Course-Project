@@ -1,0 +1,59 @@
+services:
+  database:
+    image: postgres:16-alpine
+    container_name: forumdb_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-forumdb}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-forumdb_pass}
+      POSTGRES_DB: ${POSTGRES_DB:-forumdb}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./database/seeds/seed01.sql:/docker-entrypoint-initdb.d/seed01.sql
+    ports:
+      - "5434:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-forumdb} -d ${POSTGRES_DB:-forumdb}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: forumdb_backend
+    restart: unless-stopped
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-forumdb}:${POSTGRES_PASSWORD:-forumdb_pass}@database:5432/${POSTGRES_DB:-forumdb}
+      - FLASK_ENV=development
+      - FLASK_DEBUG=1
+    volumes:
+      - ./backend/app:/app/app
+    ports:
+      - "5000:5000"
+    depends_on:
+      database:
+        condition: service_healthy
+    command: flask run --host=0.0.0.0 --port=5000 --reload
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: forumdb_frontend
+    restart: unless-stopped
+    environment:
+      - VITE_API_URL=http://localhost:5000
+    volumes:
+      - ./frontend/src:/app/src
+      - ./frontend/index.html:/app/index.html
+      - /app/node_modules
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
