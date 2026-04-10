@@ -1,0 +1,84 @@
+/* HomeFeed.css */
+@import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700&family=Inter:wght@400;500&display=swap');
+
+.feed-container {
+  max-width: 720px;
+  margin: 2rem auto;
+  padding: 0 1rem;
+}
+
+.feed-container h1 {
+  font-family: 'Sora', sans-serif;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: orangered;
+  margin: 0 0 1.5rem 0;
+}
+
+.feed-empty {
+  font-family: 'Inter', sans-serif;
+  color: #6b7280;
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 2rem;
+  text-align: center;
+}
+
+.feed-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.feed-post-card {
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 1.1rem 1.3rem;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.feed-post-card:hover {
+  border-color: #d1d5db;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+}
+
+.feed-post-meta {
+  font-family: 'Inter', sans-serif;
+  font-size: 0.8rem;
+  color: #9ca3af;
+  margin-bottom: 0.5rem;
+}
+
+.feed-post-meta .community {
+  font-weight: 600;
+  color: #ff4500;
+}
+
+.feed-post-meta .separator {
+  margin: 0 0.3rem;
+}
+
+.feed-post-title {
+  font-family: 'Sora', sans-serif;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: #1a1a1b;
+  margin: 0 0 0.4rem 0;
+}
+
+.feed-post-content {
+  font-family: 'Inter', sans-serif;
+  font-size: 0.9rem;
+  color: #4b5563;
+  line-height: 1.55;
+  margin: 0;
+}
+
+.feed-loading {
+  font-family: 'Inter', sans-serif;
+  color: #9ca3af;
+  text-align: center;
+  padding: 3rem;
+}

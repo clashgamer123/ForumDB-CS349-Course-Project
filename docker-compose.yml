@@ -29,6 +29,7 @@ services:
       - DATABASE_URL=postgresql://${POSTGRES_USER:-forumdb}:${POSTGRES_PASSWORD:-forumdb_pass}@database:5432/${POSTGRES_DB:-forumdb}
       - FLASK_ENV=development
       - FLASK_DEBUG=1
+      - SECRET_KEY=reddit_sucks_very_bad
     volumes:
       - ./backend/app:/app/app
     ports:

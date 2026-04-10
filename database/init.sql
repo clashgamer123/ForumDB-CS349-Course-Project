@@ -1,9 +1,7 @@
-DROP TABLE IF EXISTS users;
-
-DROP TABLE IF EXISTS communities;
-DROP TABLE IF EXISTS community_members;
-
 DROP TABLE IF EXISTS posts;
+DROP TABLE IF EXISTS community_members;
+DROP TABLE IF EXISTS communities;
+DROP TABLE IF EXISTS users;
 
 CREATE TABLE users (
     id SERIAL PRIMARY KEY,
