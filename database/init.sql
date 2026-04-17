@@ -1,7 +1,7 @@
-DROP TABLE IF EXISTS posts;
-DROP TABLE IF EXISTS community_members;
-DROP TABLE IF EXISTS communities;
-DROP TABLE IF EXISTS users;
+-- DROP TABLE IF EXISTS posts;
+-- DROP TABLE IF EXISTS community_members;
+-- DROP TABLE IF EXISTS communities;
+-- DROP TABLE IF EXISTS users;
 
 CREATE TABLE users (
     id SERIAL PRIMARY KEY,
@@ -41,3 +41,16 @@ CREATE TABLE posts (
     FOREIGN KEY (author_id) REFERENCES users(id) ON DELETE CASCADE,
     FOREIGN KEY (community_id) REFERENCES communities(id) ON DELETE CASCADE
 );
+
+CREATE TABLE post_media (
+    id SERIAL PRIMARY KEY,
+    post_id INTEGER NOT NULL,
+    media_type VARCHAR(50) NOT NULL,  -- image/jpeg, image/png, video/mp4, etc.
+    media_url TEXT NOT NULL,
+    position INTEGER DEFAULT 0,  -- Order of media in the post
+    caption TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (post_id) REFERENCES posts(id) ON DELETE CASCADE
+);
+
+CREATE INDEX idx_post_media_post_id ON post_media(post_id);
