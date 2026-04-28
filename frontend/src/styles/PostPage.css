@@ -1,0 +1,357 @@
+@import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700&family=Inter:wght@400;500&display=swap');
+
+.post-page {
+  max-width: 820px;
+  margin: 2rem auto;
+  padding: 0 1rem;
+}
+
+.post-panel,
+.comments-panel,
+.comment-item {
+  background: #242b35;
+  border: 1px solid #3f4a59;
+  border-radius: 8px;
+}
+
+.post-panel,
+.comments-panel {
+  padding: 1.25rem 1.4rem;
+}
+
+.post-panel {
+  margin-bottom: 1.25rem;
+}
+
+.post-meta-row,
+.comment-meta {
+  font-family: 'Inter', sans-serif;
+  font-size: 0.8rem;
+  color: #94a0ae;
+}
+
+.post-community-link {
+  color: #ff8a5a;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.separator {
+  margin: 0 0.35rem;
+}
+
+.post-page-title {
+  font-family: 'Sora', sans-serif;
+  font-size: 1.5rem;
+  margin: 0.6rem 0 0.8rem;
+  color: #eef2f6;
+}
+
+.post-page-content,
+.comment-content,
+.comments-empty,
+.post-page-inline-error,
+.post-page-error {
+  font-family: 'Inter', sans-serif;
+  color: #bcc5cf;
+  line-height: 1.6;
+}
+
+.post-page-content {
+  margin: 0 0 1rem;
+}
+
+.post-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 1rem;
+  margin-top: 1rem;
+  flex-wrap: wrap;
+}
+
+.post-comment-count {
+  font-family: 'Inter', sans-serif;
+  font-size: 0.9rem;
+  color: #bcc5cf;
+}
+
+.comments-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.comment-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.38rem;
+  font-family: 'Inter', sans-serif;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #c7d0da;
+  background: #303949;
+  border: 1px solid #465263;
+  border-radius: 999px;
+  padding: 0.38rem 0.72rem;
+}
+
+.comment-badge-icon {
+  width: 0.95rem;
+  height: 0.95rem;
+}
+
+.vote-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  background: #303949;
+  border: 1px solid #465263;
+  border-radius: 999px;
+  padding: 0.2rem;
+}
+
+.vote-btn,
+.comment-submit-btn,
+.reply-toggle-btn {
+  border: 1px solid transparent;
+  background: transparent;
+  color: #c7d0da;
+  border-radius: 999px;
+  padding: 0.45rem 0.7rem;
+  font-family: 'Inter', sans-serif;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.vote-btn {
+  min-width: 2.6rem;
+  min-height: 2rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.28rem;
+  padding: 0 0.7rem;
+  font-size: 0.95rem;
+}
+
+.vote-btn:hover {
+  background: #394354;
+}
+
+.vote-btn.upvote.active {
+  color: #ff8a5a;
+  background: #4a2f25;
+}
+
+.vote-btn.downvote.active {
+  color: #8cb6ff;
+  background: #29354c;
+}
+
+.vote-count {
+  font-size: 0.8rem;
+  line-height: 1;
+}
+
+.comments-panel h2 {
+  font-family: 'Sora', sans-serif;
+  font-size: 1.1rem;
+  margin: 0;
+  color: #eef2f6;
+}
+
+.comment-form,
+.reply-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.comment-form textarea,
+.reply-form textarea {
+  border: 1.5px solid #445062;
+  border-radius: 8px;
+  padding: 0.75rem 0.9rem;
+  resize: vertical;
+  font-family: 'Inter', sans-serif;
+  font-size: 0.92rem;
+  background: #1b212a;
+  color: #eef2f6;
+  caret-color: #eef2f6;
+}
+
+.comment-form textarea::placeholder,
+.reply-form textarea::placeholder {
+  color: #8f9baa;
+}
+
+.comment-form textarea:focus,
+.reply-form textarea:focus {
+  outline: none;
+  border-color: #79b8ff;
+  box-shadow: 0 0 0 3px rgba(121, 184, 255, 0.12);
+  background: #202732;
+}
+
+.comment-composer-trigger {
+  width: 100%;
+  min-height: 3.2rem;
+  border: 1.5px solid #445062;
+  background: #1f262f;
+  border-radius: 999px;
+  padding: 0.85rem 1rem;
+  text-align: left;
+  font-family: 'Inter', sans-serif;
+  font-size: 0.95rem;
+  color: #aab4c0;
+  cursor: pointer;
+}
+
+.comment-composer-trigger:hover {
+  border-color: #5a687d;
+  background: #242d38;
+}
+
+.comment-form-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.65rem;
+}
+
+.comments-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  margin-top: 1.25rem;
+}
+
+.comment-item {
+  padding: 1rem 1.1rem;
+}
+
+.comment-content {
+  margin: 0.55rem 0;
+}
+
+.comment-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.reply-toggle-btn {
+  background: #303949;
+  color: #c7d0da;
+  border: 1px solid #465263;
+}
+
+.reply-toggle-btn:hover {
+  background: #394354;
+}
+
+.comment-submit-btn {
+  align-self: flex-start;
+  background: #ff6a33;
+  color: white;
+  padding: 0.6rem 1rem;
+}
+
+.comment-submit-btn:hover {
+  background: #ff5b21;
+}
+
+.comment-cancel-btn {
+  border: 1px solid #465263;
+  background: #303949;
+  color: #c7d0da;
+  border-radius: 999px;
+  padding: 0.6rem 1rem;
+  font-family: 'Inter', sans-serif;
+  font-size: 0.84rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.comment-cancel-btn:hover {
+  background: #394354;
+}
+
+.comment-replies {
+  margin-top: 0.9rem;
+  margin-left: 1rem;
+  padding-left: 1rem;
+  border-left: 2px solid #465263;
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.reply-form {
+  margin-top: 0.85rem;
+}
+
+.post-page-inline-error,
+.post-page-error,
+.comments-empty,
+.post-page-loading {
+  text-align: center;
+  padding: 1.5rem;
+}
+
+.post-page-inline-error,
+.post-page-error {
+  color: #b91c1c;
+}
+
+.carousel {
+  position: relative;
+  width: 100%;
+  border-radius: 10px;
+  overflow: hidden;
+  margin-top: 1rem;
+}
+
+.carousel-media img,
+.carousel-media video {
+  width: 100%;
+  height: auto;
+  object-fit: cover;
+  display: block;
+}
+
+.carousel-btn {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  background: rgba(0, 0, 0, 0.6);
+  color: white;
+  border: none;
+  padding: 8px 12px;
+  cursor: pointer;
+  font-size: 18px;
+}
+
+.carousel-btn.left {
+  left: 5px;
+}
+
+.carousel-btn.right {
+  right: 5px;
+}
+
+.carousel-counter {
+  position: absolute;
+  top: 5px;
+  right: 8px;
+  background: rgba(0, 0, 0, 0.6);
+  color: white;
+  padding: 3px 6px;
+  font-size: 12px;
+  border-radius: 5px;
+}

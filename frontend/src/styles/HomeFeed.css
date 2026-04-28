@@ -9,18 +9,18 @@
 
 .feed-container h1 {
   font-family: 'Sora', sans-serif;
-  font-size: 1.5rem;
+  font-size: 1.35rem;
   font-weight: 700;
-  color: orangered;
+  color: #eef2f6;
   margin: 0 0 1.5rem 0;
 }
 
 .feed-empty {
   font-family: 'Inter', sans-serif;
-  color: #6b7280;
-  background: white;
-  border: 1px solid #e5e7eb;
-  border-radius: 10px;
+  color: #a7b1bc;
+  background: #242b35;
+  border: 1px solid #3f4a59;
+  border-radius: 8px;
   padding: 2rem;
   text-align: center;
 }
@@ -32,28 +32,28 @@
 }
 
 .feed-post-card {
-  background: white;
-  border: 1px solid #e5e7eb;
-  border-radius: 10px;
+  background: #242b35;
+  border: 1px solid #3f4a59;
+  border-radius: 8px;
   padding: 1.1rem 1.3rem;
   transition: border-color 0.15s, box-shadow 0.15s;
 }
 
 .feed-post-card:hover {
-  border-color: #d1d5db;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+  border-color: #556276;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
 }
 
 .feed-post-meta {
   font-family: 'Inter', sans-serif;
   font-size: 0.8rem;
-  color: #9ca3af;
+  color: #94a0ae;
   margin-bottom: 0.5rem;
 }
 
 .feed-post-meta .community {
   font-weight: 600;
-  color: #ff4500;
+  color: #ff7a45;
 }
 
 .feed-post-meta .separator {
@@ -64,21 +64,128 @@
   font-family: 'Sora', sans-serif;
   font-size: 1.05rem;
   font-weight: 600;
-  color: #1a1a1b;
+  color: #eef2f6;
   margin: 0 0 0.4rem 0;
+}
+
+.feed-post-link {
+  text-decoration: none;
+}
+
+.feed-post-link:hover .feed-post-title {
+  color: #ff8a5a;
 }
 
 .feed-post-content {
   font-family: 'Inter', sans-serif;
   font-size: 0.9rem;
-  color: #4b5563;
+  color: #bcc5cf;
   line-height: 1.55;
   margin: 0;
 }
 
+.feed-post-footer {
+  margin-top: 0.95rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.feed-post-stats {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  flex-wrap: wrap;
+}
+
+.feed-stat-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-family: 'Inter', sans-serif;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #c2cad4;
+  background: #303949;
+  border: 1px solid #465263;
+  border-radius: 999px;
+  padding: 0.36rem 0.7rem;
+}
+
+.feed-stat-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-family: 'Inter', sans-serif;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #c2cad4;
+  background: #303949;
+  border: 1px solid #465263;
+  border-radius: 999px;
+  padding: 0.36rem 0.7rem;
+  cursor: pointer;
+}
+
+.feed-stat-button:hover {
+  background: #394354;
+}
+
+.feed-stat-button.upvotes {
+  color: #d95f18;
+}
+
+.feed-stat-button.downvotes {
+  color: #5671d9;
+}
+
+.feed-stat-button.upvotes.active {
+  background: #4a2f25;
+  border-color: #7a4a35;
+}
+
+.feed-stat-button.downvotes.active {
+  background: #29354c;
+  border-color: #42597a;
+}
+
+.feed-stat-badge.upvotes {
+  color: #d95f18;
+}
+
+.feed-stat-badge.downvotes {
+  color: #5671d9;
+}
+
+.feed-stat-icon {
+  width: 0.95rem;
+  height: 0.95rem;
+}
+
+.feed-post-discussion-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Inter', sans-serif;
+  font-size: 0.82rem;
+  color: #c7d0da;
+  text-decoration: none;
+  font-weight: 600;
+  background: #303949;
+  border: 1px solid #465263;
+  border-radius: 999px;
+  padding: 0.38rem 0.8rem;
+}
+
+.feed-post-discussion-link:hover {
+  background: #394354;
+}
+
 .feed-loading {
   font-family: 'Inter', sans-serif;
-  color: #9ca3af;
+  color: #aab4c0;
   text-align: center;
   padding: 3rem;
 }

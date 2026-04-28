@@ -5,6 +5,7 @@ import AuthPage from "./components/AuthPage";
 import HomeFeed from "./components/HomeFeed";
 import Communities from "./components/Communities";
 import CommunityPage from "./components/CommunityPage";
+import PostPage from "./components/PostPage";
 
 function App() {
   const [user, setUser] = useState(null);
@@ -46,6 +47,10 @@ function App() {
           <Route 
             path="/c/:id" 
             element={user ? <CommunityPage /> : <Navigate to="/login" />} 
+          />
+          <Route
+            path="/posts/:id"
+            element={user ? <PostPage /> : <Navigate to="/login" />}
           />
           <Route 
             path="/communities" 

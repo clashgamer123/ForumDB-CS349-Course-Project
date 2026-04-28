@@ -78,8 +78,10 @@ export default function Communities() {
   const myCommunityIds = myCommunities.map(c => c.id);
 
   const filteredCommunities = allCommunities.filter(c =>
-    c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    c.display_name.toLowerCase().includes(searchQuery.toLowerCase())
+    !myCommunityIds.includes(c.id) && (
+      c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      c.display_name.toLowerCase().includes(searchQuery.toLowerCase())
+    )
   );
 
   if (loading) return <div className="communities-empty">Loading communities...</div>;
@@ -164,26 +166,25 @@ export default function Communities() {
         {/* Right: Discover */}
         <div className="communities-column">
           <h2>Discover</h2>
-          <ul className="communities-list">
-            {filteredCommunities.map(c => {
-              const isJoined = myCommunityIds.includes(c.id);
-              return (
+          {filteredCommunities.length === 0 ? (
+            <p className="communities-empty">
+              {searchQuery ? "No matching communities found." : "No new communities to discover right now."}
+            </p>
+          ) : (
+            <ul className="communities-list">
+              {filteredCommunities.map(c => (
                 <li key={c.id} className="community-card">
-                  <Link to={`/c/${c.id}`} className="community-card-link">c/{c.name}</Link>
+                  <span className="community-card-link locked">c/{c.name}</span>
                   <p className="community-card-display">{c.display_name}</p>
                   <p className="community-card-desc">{c.description}</p>
                   <div className="community-card-footer">
                     <span className="community-card-members">{c.members_count} members</span>
-                    {isJoined ? (
-                      <span className="joined-badge">Joined ✓</span>
-                    ) : (
-                      <button onClick={() => handleJoinLeave(c.id, true)} className="join-btn">Join</button>
-                    )}
+                    <button onClick={() => handleJoinLeave(c.id, true)} className="join-btn">Join</button>
                   </div>
                 </li>
-              );
-            })}
-          </ul>
+              ))}
+            </ul>
+          )}
         </div>
       </div>
     </div>

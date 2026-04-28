@@ -3,6 +3,15 @@ from ..db_control.db import get_db
 
 communities_bp = Blueprint('communities', __name__)
 
+
+def is_community_member(cur, community_id, user_id):
+    cur.execute("""
+        SELECT 1
+        FROM community_members
+        WHERE community_id = %s AND user_id = %s
+    """, (community_id, user_id))
+    return cur.fetchone() is not None
+
 # 1. Get all communities (for browsing)
 @communities_bp.route('/', methods=['GET'])
 def get_all_communities():
@@ -30,6 +39,33 @@ def get_my_communities():
     communities = cur.fetchall()
     cur.close()
     return jsonify(communities), 200
+
+# 2b. Get a single community
+@communities_bp.route('/<int:community_id>', methods=['GET'])
+def get_single_community(community_id):
+    if 'user_id' not in session:
+        return jsonify({"error": "Unauthorized"}), 401
+
+    db = get_db()
+    cur = db.cursor()
+
+    if not is_community_member(cur, community_id, session['user_id']):
+        cur.close()
+        return jsonify({"error": "Join this community to open it"}), 403
+
+    cur.execute("""
+        SELECT c.*, u.username AS creator_name
+        FROM communities c
+        JOIN users u ON u.id = c.created_by
+        WHERE c.id = %s
+    """, (community_id,))
+    community = cur.fetchone()
+    cur.close()
+
+    if not community:
+        return jsonify({"error": "Community not found"}), 404
+
+    return jsonify(community), 200
 
 # 3. Create a new community
 @communities_bp.route('/', methods=['POST'])
