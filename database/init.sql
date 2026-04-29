@@ -94,6 +94,9 @@ CREATE INDEX idx_community_members_user_id ON community_members(user_id);
 CREATE INDEX idx_posts_author_id ON posts(author_id);
 CREATE INDEX idx_posts_community_id_created_at ON posts(community_id, created_at DESC);
 CREATE INDEX idx_posts_search_vector ON posts USING GIN(search_vector);
+CREATE INDEX idx_communities_search_vector ON communities USING GIN (
+    to_tsvector('english', coalesce(name, '') || ' ' || coalesce(display_name, '') || ' ' || coalesce(description, ''))
+);
 CREATE INDEX idx_post_media_post_id ON post_media(post_id);
 CREATE INDEX idx_comments_post_id_created_at ON comments(post_id, created_at ASC);
 CREATE INDEX idx_comments_parent_comment_id ON comments(parent_comment_id);

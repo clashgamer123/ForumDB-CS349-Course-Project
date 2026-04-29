@@ -27,11 +27,13 @@ def create_app(config=Config):
     from .routes.communities import communities_bp
     from .routes.posts import posts_bp
     from .routes.media import media_bp
+    from .routes.users import users_bp
     
     app.register_blueprint(auth_bp, url_prefix="/api/auth")
     app.register_blueprint(communities_bp, url_prefix="/api/communities")
     app.register_blueprint(posts_bp, url_prefix="/api/posts")
     app.register_blueprint(media_bp, url_prefix="/api/media")
+    app.register_blueprint(users_bp, url_prefix="/api/users")
 
     #  Health Check Route
     @app.route("/api/health")

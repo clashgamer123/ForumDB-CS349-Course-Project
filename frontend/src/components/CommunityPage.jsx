@@ -2,6 +2,14 @@ import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import "../styles/CommunityPage.css";
 
+const SORT_OPTIONS = [
+  { value: "hot", label: "Hot" },
+  { value: "rising", label: "Rising" },
+  { value: "controversial", label: "Controversial" },
+  { value: "top", label: "Top" },
+  { value: "new", label: "New" }
+];
+
 function CommentBadge({ count }) {
   return (
     <span className="post-stat-badge comments">
@@ -22,24 +30,25 @@ function CommentBadge({ count }) {
 function MediaCarousel({ media }) {
   const [currentIndex, setCurrentIndex] = useState(0);
 
+  useEffect(() => {
+    setCurrentIndex(0);
+  }, [media]);
+
   const next = () => {
     setCurrentIndex((prev) => (prev + 1) % media.length);
   };
 
   const prev = () => {
-    setCurrentIndex((prev) =>
-      prev === 0 ? media.length - 1 : prev - 1
-    );
+    setCurrentIndex((prev) => (prev === 0 ? media.length - 1 : prev - 1));
   };
 
   const current = media[currentIndex];
 
   return (
     <div className="carousel">
-      {/* Image / Video */}
       <div className="carousel-media">
         {current.media_type.startsWith("image") ? (
-          <img src={`http://localhost:5000${current.media_url}`} />
+          <img src={`http://localhost:5000${current.media_url}`} alt="" />
         ) : (
           <video controls>
             <source src={`http://localhost:5000${current.media_url}`} />
@@ -47,31 +56,48 @@ function MediaCarousel({ media }) {
         )}
       </div>
 
-      {/* Left Arrow */}
       {media.length > 1 && (
-        <button className="carousel-btn left" onClick={prev}>
-          ‹
+        <button type="button" className="carousel-btn left" onClick={prev} aria-label="Previous media">
+          {"<"}
         </button>
       )}
 
-      {/* Right Arrow */}
       {media.length > 1 && (
-        <button className="carousel-btn right" onClick={next}>
-          ›
+        <button type="button" className="carousel-btn right" onClick={next} aria-label="Next media">
+          {">"}
         </button>
       )}
 
-      {/* Counter */}
       <div className="carousel-counter">
         {currentIndex + 1}/{media.length}
       </div>
     </div>
   );
 }
+
+function SortTabs({ activeSort, onChange }) {
+  return (
+    <div className="community-sort-bar">
+      {SORT_OPTIONS.map((option) => (
+        <button
+          key={option.value}
+          type="button"
+          className={`community-sort-pill ${activeSort === option.value ? "active" : ""}`}
+          onClick={() => onChange(option.value)}
+        >
+          {option.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export default function CommunityPage() {
   const { id } = useParams();
   const [community, setCommunity] = useState(null);
   const [posts, setPosts] = useState([]);
+  const [sortMode, setSortMode] = useState("hot");
+  const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [showCreateForm, setShowCreateForm] = useState(false);
@@ -81,9 +107,52 @@ export default function CommunityPage() {
   const [mediaItems, setMediaItems] = useState([]);
   const [uploading, setUploading] = useState(false);
 
+  const fetchCommunityPage = async (activeSort = sortMode, activeQuery = searchQuery) => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams({ sort: activeSort });
+      const trimmedQuery = activeQuery.trim();
+      if (trimmedQuery) {
+        params.set("q", trimmedQuery);
+      }
+
+      const [communityRes, postsRes] = await Promise.all([
+        fetch(`http://localhost:5000/api/communities/${id}`, { credentials: "include" }),
+        fetch(`http://localhost:5000/api/posts/community/${id}?${params.toString()}`, { credentials: "include" })
+      ]);
+
+      const communityData = await communityRes.json();
+      const postsData = await postsRes.json();
+
+      if (!communityRes.ok) {
+        throw new Error(communityData.error || "Failed to load community");
+      }
+
+      if (!postsRes.ok) {
+        throw new Error(postsData.error || "Failed to load posts");
+      }
+
+      setCommunity(communityData);
+      setPosts(Array.isArray(postsData.posts) ? postsData.posts : []);
+      setError("");
+    } catch (err) {
+      console.error("Failed to fetch community page", err);
+      setError(err.message || "Unable to load community right now.");
+      setCommunity(null);
+      setPosts([]);
+      setShowCreateForm(false);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    fetchCommunityPage();
-  }, [id]);
+    const timer = setTimeout(() => {
+      fetchCommunityPage(sortMode, searchQuery);
+    }, 250);
+
+    return () => clearTimeout(timer);
+  }, [id, sortMode, searchQuery]);
 
   const handleVote = async (postId, voteValue) => {
     try {
@@ -99,55 +168,20 @@ export default function CommunityPage() {
         throw new Error(data.error || "Failed to vote on post");
       }
 
-      setPosts((prev) =>
-        prev.map((post) =>
-          post.id === postId ? { ...post, ...data } : post
-        )
-      );
+      setPosts((prev) => prev.map((post) => (
+        post.id === postId ? { ...post, ...data } : post
+      )));
     } catch (err) {
       setError(err.message || "Failed to vote on post");
     }
   };
 
-  const fetchCommunityPage = async () => {
-    setLoading(true);
-    try {
-      const [communityRes, postsRes] = await Promise.all([
-        fetch(`http://localhost:5000/api/communities/${id}`, { credentials: "include" }),
-        fetch(`http://localhost:5000/api/posts/community/${id}`, { credentials: "include" })
-      ]);
-
-      const communityData = await communityRes.json();
-      const postsData = await postsRes.json();
-
-      if (!communityRes.ok) {
-        throw new Error(communityData.error || "Failed to load community");
-      }
-
-      if (!postsRes.ok) {
-        throw new Error(postsData.error || "Failed to load posts");
-      }
-
-      setCommunity(communityData);
-      setPosts(Array.isArray(postsData) ? postsData : []);
-      setError("");
-    } catch (err) {
-      console.error("Failed to fetch community page", err);
-      setError(err.message || "Unable to load community right now.");
-      setCommunity(null);
-      setPosts([]);
-      setShowCreateForm(false);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleFileUpload = async (e) => {
-    const files = Array.from(e.target.files);
+  const handleFileUpload = async (event) => {
+    const files = Array.from(event.target.files);
     if (files.length === 0) return;
 
     setUploading(true);
-    const newMediaItems = [];
+    const uploadedMedia = [];
 
     for (const file of files) {
       try {
@@ -160,29 +194,27 @@ export default function CommunityPage() {
           body: formData
         });
 
-        if (res.ok) {
-          const data = await res.json();
-          newMediaItems.push({
-            media_url: data.media_url,
-            media_type: data.media_type,
-            caption: ""
-          });
+        if (!res.ok) {
+          continue;
         }
+
+        const data = await res.json();
+        uploadedMedia.push({
+          media_url: data.media_url,
+          media_type: data.media_type,
+          caption: ""
+        });
       } catch (err) {
         console.error("Failed to upload file", err);
       }
     }
 
-    setMediaItems([...mediaItems, ...newMediaItems]);
+    setMediaItems((prev) => [...prev, ...uploadedMedia]);
     setUploading(false);
   };
 
-  const handleRemoveMedia = (index) => {
-    setMediaItems(mediaItems.filter((_, i) => i !== index));
-  };
-
-  const handleCreatePost = async (e) => {
-    e.preventDefault();
+  const handleCreatePost = async (event) => {
+    event.preventDefault();
     try {
       const res = await fetch("http://localhost:5000/api/posts/", {
         method: "POST",
@@ -195,22 +227,24 @@ export default function CommunityPage() {
           media_items: mediaItems
         })
       });
+      const data = await res.json();
 
-      if (res.ok) {
-        setNewTitle("");
-        setNewContent("");
-        setMediaItems([]);
-        setShowCreateForm(false);
-        fetchCommunityPage();
-      } else {
-        const data = await res.json();
-        setError(data.error || "Failed to create post");
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to create post");
       }
+
+      setNewTitle("");
+      setNewContent("");
+      setMediaItems([]);
+      setShowCreateForm(false);
+      await fetchCommunityPage(sortMode, searchQuery);
     } catch (err) {
-      console.error("Failed to post", err);
-      setError("Failed to create post");
+      setError(err.message || "Failed to create post");
     }
   };
+
+  const trimmedQuery = searchQuery.trim();
+  const activeSortLabel = SORT_OPTIONS.find((option) => option.value === sortMode)?.label || "Hot";
 
   if (loading) return <div className="community-page-loading">Loading...</div>;
 
@@ -249,22 +283,22 @@ export default function CommunityPage() {
           <form onSubmit={handleCreatePost} className="create-post-form">
             <input
               type="text"
-              placeholder="Post Title"
+              placeholder="Post title"
               value={newTitle}
-              onChange={(e) => setNewTitle(e.target.value)}
+              onChange={(event) => setNewTitle(event.target.value)}
               required
             />
             <textarea
-              placeholder="What's on your mind?"
+              placeholder="What do you want to share?"
               value={newContent}
-              onChange={(e) => setNewContent(e.target.value)}
+              onChange={(event) => setNewContent(event.target.value)}
               required
               rows="4"
             />
 
             <div className="media-upload-section">
               <label htmlFor="media-input" className="media-upload-label">
-                Add Images or Videos
+                Add images or videos
               </label>
               <input
                 id="media-input"
@@ -278,9 +312,7 @@ export default function CommunityPage() {
               {uploading && <p className="uploading-text">Uploading...</p>}
             </div>
 
-            {mediaItems.length > 0 && (
-              <MediaCarousel media={mediaItems} />
-            )}
+            {mediaItems.length > 0 && <MediaCarousel media={mediaItems} />}
 
             <button type="submit" className="create-post-submit-btn">
               Submit Post
@@ -290,25 +322,55 @@ export default function CommunityPage() {
       )}
 
       <div className="posts-section">
-        <div className="posts-section-header">
-          <h2>Posts</h2>
-          <span className="posts-count">{posts.length}</span>
+        <div className="posts-tools">
+          <div className="posts-section-header">
+            <div>
+              <h2>{trimmedQuery ? `Search results for "${trimmedQuery}"` : "Posts"}</h2>
+              <p className="posts-section-note">{activeSortLabel} ranking inside this community</p>
+            </div>
+            <span className="posts-count">{posts.length}</span>
+          </div>
+
+          <div className="community-search-row">
+            <label className="community-search-shell">
+              <span>Search posts</span>
+              <input
+                type="search"
+                placeholder="Search titles and content in this community"
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+              />
+            </label>
+          </div>
+
+          <SortTabs activeSort={sortMode} onChange={setSortMode} />
         </div>
+
         {error ? (
           <p className="posts-empty">{error}</p>
         ) : posts.length === 0 ? (
-          <p className="posts-empty">No posts here yet. Be the first!</p>
+          <p className="posts-empty">
+            {trimmedQuery ? "No posts matched your search in this community." : "No posts here yet. Be the first!"}
+          </p>
         ) : (
           <div className="posts-list">
             {posts.map((post) => (
-              <div key={post.id} className="post-card">
-                <p className="post-author">
-                  Posted by <strong>u/{post.author_name}</strong>
-                </p>
+              <article key={post.id} className="post-card">
+                <div className="post-meta-row">
+                  <p className="post-author">
+                    Posted by <strong>u/{post.author_name}</strong>
+                  </p>
+                  <span className={`post-rank-tag ${sortMode}`}>{activeSortLabel}</span>
+                </div>
                 <Link to={`/posts/${post.id}`} className="post-title-link">
                   <h3 className="post-title">{post.title}</h3>
                 </Link>
                 <p className="post-content">{post.content}</p>
+
+                {post.media && post.media.length > 0 && (
+                  <MediaCarousel media={post.media} />
+                )}
+
                 <div className="post-card-footer">
                   <div className="post-stats">
                     <button
@@ -317,7 +379,7 @@ export default function CommunityPage() {
                       onClick={() => handleVote(post.id, 1)}
                       aria-label="Upvote post"
                     >
-                      ▲ <span>{post.upvote_count}</span>
+                      ^ <span>{post.upvote_count}</span>
                     </button>
                     <button
                       type="button"
@@ -325,7 +387,7 @@ export default function CommunityPage() {
                       onClick={() => handleVote(post.id, -1)}
                       aria-label="Downvote post"
                     >
-                      ▼ <span>{-post.downvote_count}</span>
+                      v <span>{post.downvote_count}</span>
                     </button>
                     <CommentBadge count={post.comment_count} />
                   </div>
@@ -333,12 +395,7 @@ export default function CommunityPage() {
                     Open
                   </Link>
                 </div>
-
-                {/* Media Rendering */}
-                {post.media && post.media.length > 0 && (
-                  <MediaCarousel media={post.media} />
-                )}
-              </div>
+              </article>
             ))}
           </div>
         )}

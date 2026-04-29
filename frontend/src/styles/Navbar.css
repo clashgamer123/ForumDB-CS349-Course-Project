@@ -30,6 +30,10 @@
   letter-spacing: -0.3px;
 }
 
+.navbar-brand-link {
+  text-decoration: none;
+}
+
 .navbar-link {
   font-family: 'Inter', sans-serif;
   font-size: 0.9rem;
@@ -57,6 +61,11 @@
   font-size: 0.875rem;
   color: #c4ccd6;
   font-weight: 500;
+  text-decoration: none;
+}
+
+.navbar-username:hover {
+  color: #f4f7fa;
 }
 
 .navbar-logout-btn {

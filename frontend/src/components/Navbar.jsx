@@ -13,7 +13,9 @@ export default function Navbar({ user, setUser }) {
   return (
     <nav className="navbar">
       <div className="navbar-left">
-        <h2 className="navbar-brand">ForumDB</h2>
+        <Link to="/" className="navbar-brand-link">
+          <h2 className="navbar-brand">ForumDB</h2>
+        </Link>
         {user && (
           <>
             <Link to="/" className="navbar-link">Home Feed</Link>
@@ -24,7 +26,7 @@ export default function Navbar({ user, setUser }) {
 
       {user && (
         <div className="navbar-right">
-          <span className="navbar-username">u/{user.username}</span>
+          <Link to="/u/me" className="navbar-username">u/{user.username}</Link>
           <button onClick={handleLogout} className="navbar-logout-btn">Logout</button>
         </div>
       )}

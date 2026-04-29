@@ -3,6 +3,8 @@ from ..db_control.db import get_db
 
 posts_bp = Blueprint('posts', __name__)
 
+VALID_FEED_SORTS = {"hot", "new", "top", "rising", "controversial"}
+
 
 def is_community_member(cur, community_id, user_id):
     cur.execute("""
@@ -13,6 +15,11 @@ def is_community_member(cur, community_id, user_id):
     return cur.fetchone() is not None
 
 
+def normalize_sort_mode(sort_mode):
+    normalized = (sort_mode or "hot").strip().lower()
+    return normalized if normalized in VALID_FEED_SORTS else "hot"
+
+
 def fetch_post_media(cur, post_id):
     cur.execute("""
         SELECT id, media_type, media_url, caption, position
@@ -21,6 +28,34 @@ def fetch_post_media(cur, post_id):
         ORDER BY position ASC
     """, (post_id,))
     return cur.fetchall()
+
+
+def attach_media_to_posts(cur, posts):
+    if not posts:
+        return posts
+
+    post_ids = [post["id"] for post in posts]
+    cur.execute("""
+        SELECT post_id, id, media_type, media_url, caption, position
+        FROM post_media
+        WHERE post_id = ANY(%s)
+        ORDER BY post_id ASC, position ASC
+    """, (post_ids,))
+
+    media_by_post = {}
+    for row in cur.fetchall():
+        media_by_post.setdefault(row["post_id"], []).append({
+            "id": row["id"],
+            "media_type": row["media_type"],
+            "media_url": row["media_url"],
+            "caption": row["caption"],
+            "position": row["position"],
+        })
+
+    for post in posts:
+        post["media"] = media_by_post.get(post["id"], [])
+
+    return posts
 
 
 def fetch_vote_stats(cur, table_name, target_column, target_id, current_user_id=None):
@@ -149,6 +184,228 @@ def fetch_comments_for_post(cur, post_id, current_user_id=None):
     return build_comment_tree(cur.fetchall())
 
 
+def build_post_order_clause(sort_mode, has_search=False):
+    order_clauses = []
+    if has_search:
+        order_clauses.append("search_rank DESC")
+
+    sort_orders = {
+        "new": """
+            p.created_at DESC
+        """,
+        "top": """
+            COALESCE(vt.score, 0) DESC,
+            COALESCE(ct.comment_count, 0) DESC,
+            p.created_at DESC
+        """,
+        "rising": """
+            (
+                (
+                    COALESCE(vt.upvote_count, 0) * 1.0
+                    + COALESCE(ct.comment_count, 0) * 0.75
+                    - COALESCE(vt.downvote_count, 0) * 0.25
+                )
+                / POWER(
+                    GREATEST(EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - p.created_at)) / 3600.0 + 2.0, 2.0),
+                    1.35
+                )
+            ) DESC,
+            COALESCE(vt.score, 0) DESC,
+            p.created_at DESC
+        """,
+        "controversial": """
+            (
+                CASE
+                    WHEN COALESCE(vt.upvote_count, 0) = 0 OR COALESCE(vt.downvote_count, 0) = 0 THEN 0
+                    ELSE (
+                        LEAST(COALESCE(vt.upvote_count, 0), COALESCE(vt.downvote_count, 0))::numeric
+                        / GREATEST(COALESCE(vt.upvote_count, 0), COALESCE(vt.downvote_count, 0))
+                    ) * (COALESCE(vt.upvote_count, 0) + COALESCE(vt.downvote_count, 0))
+                END
+            ) DESC,
+            COALESCE(vt.score, 0) DESC,
+            p.created_at DESC
+        """,
+        "hot": """
+            (
+                CASE
+                    WHEN COALESCE(vt.score, 0) = 0 THEN 0
+                    ELSE SIGN(COALESCE(vt.score, 0)) * LN(GREATEST(ABS(COALESCE(vt.score, 0)), 1) + 1)
+                END
+                + EXTRACT(EPOCH FROM p.created_at) / 45000.0
+            ) DESC,
+            COALESCE(ct.comment_count, 0) DESC,
+            p.created_at DESC
+        """,
+    }
+
+    order_clauses.append(sort_orders.get(sort_mode, sort_orders["hot"]).strip())
+    return ", ".join(order_clauses)
+
+
+def fetch_posts_listing(
+    cur,
+    current_user_id,
+    *,
+    sort_mode="hot",
+    search_query="",
+    community_id=None,
+    joined_only=False,
+    author_id=None,
+    limit=50,
+):
+    sort_mode = normalize_sort_mode(sort_mode)
+    search_query = (search_query or "").strip()
+    like_query = f"%{search_query}%"
+
+    select_params = []
+    join_params = []
+    where_params = []
+    where_clauses = ["TRUE"]
+
+    membership_join = ""
+    if joined_only:
+        membership_join = """
+            JOIN community_members cm
+              ON cm.community_id = c.id
+             AND cm.user_id = %s
+        """
+        join_params.append(current_user_id)
+
+    if community_id is not None:
+        where_clauses.append("p.community_id = %s")
+        where_params.append(community_id)
+
+    if author_id is not None:
+        where_clauses.append("p.author_id = %s")
+        where_params.append(author_id)
+
+    search_rank_sql = "0::real AS search_rank"
+    if search_query:
+        search_rank_sql = """
+            ts_rank_cd(p.search_vector, websearch_to_tsquery('english', %s)) AS search_rank
+        """
+        select_params.append(search_query)
+        where_clauses.append("""
+            (
+                p.search_vector @@ websearch_to_tsquery('english', %s)
+                OR p.title ILIKE %s
+                OR p.content ILIKE %s
+            )
+        """)
+        where_params.extend([search_query, like_query, like_query])
+
+    cur.execute(f"""
+        WITH vote_totals AS (
+            SELECT
+                post_id,
+                COUNT(*) FILTER (WHERE vote_value = 1) AS upvote_count,
+                COUNT(*) FILTER (WHERE vote_value = -1) AS downvote_count,
+                COALESCE(SUM(vote_value), 0) AS score
+            FROM post_votes
+            GROUP BY post_id
+        ),
+        comment_totals AS (
+            SELECT post_id, COUNT(*) AS comment_count
+            FROM comments
+            GROUP BY post_id
+        ),
+        current_user_votes AS (
+            SELECT post_id, vote_value
+            FROM post_votes
+            WHERE user_id = %s
+        )
+        SELECT
+            p.id,
+            p.title,
+            p.content,
+            p.created_at,
+            p.community_id,
+            u.username AS author_name,
+            c.name AS community_name,
+            c.display_name AS community_display_name,
+            COALESCE(vt.upvote_count, 0) AS upvote_count,
+            COALESCE(vt.downvote_count, 0) AS downvote_count,
+            COALESCE(vt.score, 0) AS score,
+            COALESCE(uv.vote_value, 0) AS user_vote,
+            COALESCE(ct.comment_count, 0) AS comment_count,
+            {search_rank_sql}
+        FROM posts p
+        JOIN users u ON u.id = p.author_id
+        JOIN communities c ON c.id = p.community_id
+        {membership_join}
+        LEFT JOIN vote_totals vt ON vt.post_id = p.id
+        LEFT JOIN comment_totals ct ON ct.post_id = p.id
+        LEFT JOIN current_user_votes uv ON uv.post_id = p.id
+        WHERE {" AND ".join(where_clauses)}
+        ORDER BY {build_post_order_clause(sort_mode, bool(search_query))}
+        LIMIT {int(limit)}
+    """, [current_user_id] + select_params + join_params + where_params)
+
+    posts = cur.fetchall()
+    attach_media_to_posts(cur, posts)
+    return posts
+
+
+def search_home_communities(cur, current_user_id, search_query, limit=6):
+    search_query = (search_query or "").strip()
+    if not search_query:
+        return []
+
+    like_query = f"%{search_query}%"
+    community_vector = """
+        to_tsvector(
+            'english',
+            coalesce(c.name, '') || ' ' || coalesce(c.display_name, '') || ' ' || coalesce(c.description, '')
+        )
+    """
+
+    cur.execute(f"""
+        SELECT
+            c.id,
+            c.name,
+            c.display_name,
+            c.description,
+            c.members_count,
+            c.created_at,
+            EXISTS (
+                SELECT 1
+                FROM community_members cm
+                WHERE cm.community_id = c.id AND cm.user_id = %s
+            ) AS is_joined,
+            ts_rank_cd({community_vector}, websearch_to_tsquery('english', %s)) AS search_rank
+        FROM communities c
+        WHERE
+            {community_vector} @@ websearch_to_tsquery('english', %s)
+            OR c.name ILIKE %s
+            OR c.display_name ILIKE %s
+            OR c.description ILIKE %s
+        ORDER BY
+            CASE
+                WHEN c.name ILIKE %s THEN 3
+                WHEN c.display_name ILIKE %s THEN 2
+                WHEN c.description ILIKE %s THEN 1
+                ELSE 0
+            END DESC,
+            search_rank DESC,
+            c.members_count DESC,
+            c.created_at DESC
+        LIMIT {int(limit)}
+    """, [
+        current_user_id,
+        search_query,
+        search_query,
+        like_query,
+        like_query,
+        like_query,
+        like_query,
+        like_query,
+        like_query,
+    ])
+
+    return cur.fetchall()
+
+
 def apply_vote(cur, table_name, target_column, target_id, user_id, vote_value):
     cur.execute(
         f"SELECT vote_value FROM {table_name} WHERE {target_column} = %s AND user_id = %s",
@@ -222,27 +479,29 @@ def get_home_feed():
     if 'user_id' not in session:
         return jsonify({"error": "Unauthorized"}), 401
 
+    sort_mode = normalize_sort_mode(request.args.get("sort"))
+    search_query = (request.args.get("q", "") or "").strip()
+
     db = get_db()
     cur = db.cursor()
 
     try:
-        cur.execute("""
-            SELECT p.id, p.title, p.content, p.created_at,
-                   u.username AS author_name, c.name AS community_name
-            FROM posts p
-            JOIN users u ON p.author_id = u.id
-            JOIN communities c ON p.community_id = c.id
-            JOIN community_members cm ON c.id = cm.community_id
-            WHERE cm.user_id = %s
-            ORDER BY p.created_at DESC
-            LIMIT 50
-        """, (session['user_id'],))
-        feed = cur.fetchall()
+        posts = fetch_posts_listing(
+            cur,
+            session['user_id'],
+            sort_mode=sort_mode,
+            search_query=search_query,
+            joined_only=True,
+            limit=50,
+        )
+        communities = search_home_communities(cur, session['user_id'], search_query)
 
-        for post in feed:
-            enrich_post(cur, post, session.get('user_id'))
-
-        return jsonify(feed), 200
+        return jsonify({
+            "sort": sort_mode,
+            "query": search_query,
+            "communities": communities,
+            "posts": posts,
+        }), 200
     finally:
         cur.close()
 
@@ -252,6 +511,9 @@ def get_community_posts(community_id):
     if 'user_id' not in session:
         return jsonify({"error": "Unauthorized"}), 401
 
+    sort_mode = normalize_sort_mode(request.args.get("sort"))
+    search_query = (request.args.get("q", "") or "").strip()
+
     db = get_db()
     cur = db.cursor()
 
@@ -259,19 +521,20 @@ def get_community_posts(community_id):
         if not is_community_member(cur, community_id, session['user_id']):
             return jsonify({"error": "Join this community to view posts"}), 403
 
-        cur.execute("""
-            SELECT p.id, p.title, p.content, p.created_at, u.username AS author_name
-            FROM posts p
-            JOIN users u ON p.author_id = u.id
-            WHERE p.community_id = %s
-            ORDER BY p.created_at DESC
-        """, (community_id,))
-        posts = cur.fetchall()
+        posts = fetch_posts_listing(
+            cur,
+            session['user_id'],
+            sort_mode=sort_mode,
+            search_query=search_query,
+            community_id=community_id,
+            limit=100,
+        )
 
-        for post in posts:
-            enrich_post(cur, post, session.get('user_id'))
-
-        return jsonify(posts), 200
+        return jsonify({
+            "sort": sort_mode,
+            "query": search_query,
+            "posts": posts,
+        }), 200
     finally:
         cur.close()
 
