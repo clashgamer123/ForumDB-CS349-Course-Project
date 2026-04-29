@@ -67,14 +67,20 @@
   box-shadow: 0 0 0 3px rgba(255, 106, 51, 0.16);
 }
 
-.feed-sort-bar {
+.feed-sort-bar,
+.feed-filter-bar {
   display: flex;
   flex-wrap: wrap;
   gap: 0.6rem;
   margin-bottom: 1.3rem;
 }
 
-.feed-sort-pill {
+.feed-filter-bar {
+  margin-top: -0.65rem;
+}
+
+.feed-sort-pill,
+.feed-filter-pill {
   font-family: 'Inter', sans-serif;
   font-size: 0.84rem;
   font-weight: 700;
@@ -92,7 +98,8 @@
   border-color: #536175;
 }
 
-.feed-sort-pill.active {
+.feed-sort-pill.active,
+.feed-filter-pill.active {
   background: linear-gradient(135deg, #ff6a33, #ff9056);
   color: white;
   border-color: transparent;
@@ -157,6 +164,50 @@
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
   gap: 0.9rem;
+}
+
+.user-search-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0.8rem;
+}
+
+.user-search-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+  padding: 0.8rem;
+  background: #242b35;
+  border: 1px solid #3f4a59;
+  border-radius: 8px;
+}
+
+.user-search-main {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  color: #eef2f6;
+  text-decoration: none;
+  font-family: 'Inter', sans-serif;
+  font-weight: 700;
+}
+
+.user-search-main img {
+  width: 38px;
+  height: 38px;
+  border-radius: 999px;
+  object-fit: cover;
+}
+
+.user-search-card button {
+  border: 1px solid #465263;
+  border-radius: 999px;
+  background: #303949;
+  color: #dbe3eb;
+  padding: 0.45rem 0.75rem;
+  cursor: pointer;
+  font: 700 0.8rem 'Inter', sans-serif;
 }
 
 .community-search-card {
@@ -281,6 +332,16 @@
 .feed-post-meta .community {
   font-weight: 700;
   color: #ff7a45;
+}
+
+.feed-user-link {
+  color: #dbe3eb;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.feed-user-link:hover {
+  color: #ff9a70;
 }
 
 .feed-post-meta .separator {

@@ -49,6 +49,22 @@
   max-width: 48rem;
 }
 
+.community-privacy {
+  font-family: 'Inter', sans-serif;
+  color: #9cccff;
+  margin: 0.55rem 0 0;
+  font-size: 0.86rem;
+  font-weight: 700;
+}
+
+.community-actions {
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  position: relative;
+}
+
 .community-create-toggle {
   font-family: 'Inter', sans-serif;
   font-size: 0.86rem;
@@ -59,6 +75,64 @@
   border-radius: 999px;
   padding: 0.65rem 1rem;
   cursor: pointer;
+}
+
+.community-create-toggle.secondary {
+  background: #4d88c7;
+}
+
+.community-create-toggle.secondary:hover {
+  background: #5b96d6;
+}
+
+.community-actions .reply-toggle-btn {
+  font-family: 'Inter', sans-serif;
+  font-size: 0.86rem;
+  font-weight: 700;
+  background: #303949;
+  color: #c7d0da;
+  border: 1px solid #465263;
+  border-radius: 999px;
+  padding: 0.65rem 1rem;
+  cursor: pointer;
+}
+
+.share-box {
+  position: relative;
+}
+
+.share-popover {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 0.45rem);
+  right: 0;
+  width: 230px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  background: #1d232c;
+  border: 1px solid #465263;
+  border-radius: 8px;
+  padding: 0.65rem;
+  box-shadow: 0 12px 26px rgba(0, 0, 0, 0.28);
+}
+
+.share-popover input {
+  border: 1px solid #445062;
+  border-radius: 8px;
+  background: #151b23;
+  color: #eef2f6;
+  padding: 0.55rem;
+}
+
+.share-popover button {
+  border: 1px solid #3f4a59;
+  border-radius: 8px;
+  background: #242b35;
+  color: #dbe3eb;
+  padding: 0.45rem;
+  cursor: pointer;
+  text-align: left;
 }
 
 .community-create-toggle:hover {
@@ -270,9 +344,15 @@
   margin: 0;
 }
 
-.post-author strong {
+.post-author strong,
+.post-author a {
   color: #c4ccd6;
   font-weight: 600;
+  text-decoration: none;
+}
+
+.post-author a:hover {
+  color: #ff9a70;
 }
 
 .post-rank-tag {

@@ -7,6 +7,8 @@ import Communities from "./components/Communities";
 import CommunityPage from "./components/CommunityPage";
 import PostPage from "./components/PostPage";
 import ProfilePage from "./components/ProfilePage";
+import CreatePostPage from "./components/CreatePostPage";
+import MessagesPage from "./components/MessagesPage";
 
 function App() {
   const [user, setUser] = useState(null);
@@ -47,15 +49,31 @@ function App() {
           />
           <Route 
             path="/c/:id" 
-            element={user ? <CommunityPage /> : <Navigate to="/login" />} 
+            element={user ? <CommunityPage user={user} /> : <Navigate to="/login" />} 
           />
           <Route
             path="/posts/:id"
-            element={user ? <PostPage /> : <Navigate to="/login" />}
+            element={user ? <PostPage user={user} /> : <Navigate to="/login" />}
           />
           <Route
             path="/u/me"
-            element={user ? <ProfilePage /> : <Navigate to="/login" />}
+            element={user ? <ProfilePage user={user} /> : <Navigate to="/login" />}
+          />
+          <Route
+            path="/u/:username"
+            element={user ? <ProfilePage user={user} /> : <Navigate to="/login" />}
+          />
+          <Route
+            path="/create"
+            element={user ? <CreatePostPage /> : <Navigate to="/login" />}
+          />
+          <Route
+            path="/messages"
+            element={user ? <MessagesPage /> : <Navigate to="/login" />}
+          />
+          <Route
+            path="/messages/:userId"
+            element={user ? <MessagesPage /> : <Navigate to="/login" />}
           />
           <Route 
             path="/communities" 

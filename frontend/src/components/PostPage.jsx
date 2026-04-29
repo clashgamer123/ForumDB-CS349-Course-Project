@@ -1,50 +1,8 @@
 import { useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
+import MediaViewer from "./MediaViewer";
+import ShareBox from "./ShareBox";
 import "../styles/PostPage.css";
-
-function MediaCarousel({ media }) {
-  const [currentIndex, setCurrentIndex] = useState(0);
-
-  const next = () => {
-    setCurrentIndex((prev) => (prev + 1) % media.length);
-  };
-
-  const prev = () => {
-    setCurrentIndex((prev) => (prev === 0 ? media.length - 1 : prev - 1));
-  };
-
-  const current = media[currentIndex];
-
-  return (
-    <div className="carousel">
-      <div className="carousel-media">
-        {current.media_type.startsWith("image") ? (
-          <img src={`http://localhost:5000${current.media_url}`} />
-        ) : (
-          <video controls>
-            <source src={`http://localhost:5000${current.media_url}`} />
-          </video>
-        )}
-      </div>
-
-      {media.length > 1 && (
-        <button className="carousel-btn left" onClick={prev}>
-          ‹
-        </button>
-      )}
-
-      {media.length > 1 && (
-        <button className="carousel-btn right" onClick={next}>
-          ›
-        </button>
-      )}
-
-      <div className="carousel-counter">
-        {currentIndex + 1}/{media.length}
-      </div>
-    </div>
-  );
-}
 
 function CommentBadge({ count }) {
   return (
@@ -72,7 +30,7 @@ function VoteControls({ upvoteCount, downvoteCount, userVote, onVote }) {
         onClick={() => onVote(1)}
         aria-label="Upvote"
       >
-        ▲
+        ^
         <span className="vote-count">{upvoteCount}</span>
       </button>
       <button
@@ -81,8 +39,8 @@ function VoteControls({ upvoteCount, downvoteCount, userVote, onVote }) {
         onClick={() => onVote(-1)}
         aria-label="Downvote"
       >
-        ▼
-        <span className="vote-count">{-downvoteCount}</span>
+        v
+        <span className="vote-count">{downvoteCount}</span>
       </button>
     </div>
   );
@@ -90,21 +48,24 @@ function VoteControls({ upvoteCount, downvoteCount, userVote, onVote }) {
 
 function updateCommentVoteTree(comments, commentId, voteData) {
   return comments.map((comment) => {
-    if (comment.id === commentId) {
-      return { ...comment, ...voteData };
-    }
-
-    return {
-      ...comment,
-      replies: updateCommentVoteTree(comment.replies, commentId, voteData)
-    };
+    if (comment.id === commentId) return { ...comment, ...voteData };
+    return { ...comment, replies: updateCommentVoteTree(comment.replies || [], commentId, voteData) };
   });
+}
+
+function markDeletable(comments, userId) {
+  return comments.map((comment) => ({
+    ...comment,
+    can_delete: comment.author_id === userId,
+    replies: markDeletable(comment.replies || [], userId)
+  }));
 }
 
 function CommentItem({
   comment,
   onVote,
   onSubmitReply,
+  onDeleteComment,
   replyingTo,
   setReplyingTo,
   replyContent,
@@ -117,8 +78,8 @@ function CommentItem({
     <div className="comment-item">
       <div className="comment-body">
         <div className="comment-meta">
-          <span>u/{comment.author_name}</span>
-          <span className="separator">•</span>
+          <Link to={`/u/${comment.author_name}`}>u/{comment.author_name}</Link>
+          <span className="separator">|</span>
           <span>{new Date(comment.created_at).toLocaleString()}</span>
         </div>
         <p className="comment-content">{comment.content}</p>
@@ -139,6 +100,11 @@ function CommentItem({
           >
             {isReplying ? "Cancel" : "Reply"}
           </button>
+          {comment.can_delete && (
+            <button type="button" className="reply-toggle-btn danger" onClick={() => onDeleteComment(comment.id)}>
+              Delete
+            </button>
+          )}
         </div>
 
         {isReplying && (
@@ -171,6 +137,7 @@ function CommentItem({
               comment={reply}
               onVote={onVote}
               onSubmitReply={onSubmitReply}
+              onDeleteComment={onDeleteComment}
               replyingTo={replyingTo}
               setReplyingTo={setReplyingTo}
               replyContent={replyContent}
@@ -184,8 +151,9 @@ function CommentItem({
   );
 }
 
-export default function PostPage() {
+export default function PostPage({ user }) {
   const { id } = useParams();
+  const navigate = useNavigate();
   const [post, setPost] = useState(null);
   const [comments, setComments] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -207,23 +175,18 @@ export default function PostPage() {
         credentials: "include"
       });
       const postData = await postRes.json();
-      if (!postRes.ok) {
-        throw new Error(postData.error || "Failed to load post");
-      }
+      if (!postRes.ok) throw new Error(postData.error || "Failed to load post");
 
       const commentsRes = await fetch(`http://localhost:5000/api/posts/${id}/comments`, {
         credentials: "include"
       });
       const commentsData = await commentsRes.json();
-      if (!commentsRes.ok) {
-        throw new Error(commentsData.error || "Failed to load comments");
-      }
+      if (!commentsRes.ok) throw new Error(commentsData.error || "Failed to load comments");
 
       setPost(postData);
-      setComments(Array.isArray(commentsData) ? commentsData : []);
+      setComments(Array.isArray(commentsData) ? markDeletable(commentsData, user?.id) : []);
       setError("");
     } catch (err) {
-      console.error("Failed to load post page", err);
       setError(err.message || "Unable to load post.");
       setPost(null);
       setComments([]);
@@ -237,12 +200,8 @@ export default function PostPage() {
       credentials: "include"
     });
     const data = await res.json();
-
-    if (!res.ok) {
-      throw new Error(data.error || "Failed to load comments");
-    }
-
-    setComments(Array.isArray(data) ? data : []);
+    if (!res.ok) throw new Error(data.error || "Failed to load comments");
+    setComments(Array.isArray(data) ? markDeletable(data, user?.id) : []);
   };
 
   const refreshPost = async () => {
@@ -250,11 +209,7 @@ export default function PostPage() {
       credentials: "include"
     });
     const data = await res.json();
-
-    if (!res.ok) {
-      throw new Error(data.error || "Failed to load post");
-    }
-
+    if (!res.ok) throw new Error(data.error || "Failed to load post");
     setPost(data);
   };
 
@@ -267,11 +222,7 @@ export default function PostPage() {
         body: JSON.stringify({ vote_value: voteValue })
       });
       const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error || "Failed to vote on post");
-      }
-
+      if (!res.ok) throw new Error(data.error || "Failed to vote on post");
       setPost((prev) => (prev ? { ...prev, ...data } : prev));
     } catch (err) {
       setError(err.message || "Failed to vote on post");
@@ -287,11 +238,7 @@ export default function PostPage() {
         body: JSON.stringify({ vote_value: voteValue })
       });
       const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error || "Failed to vote on comment");
-      }
-
+      if (!res.ok) throw new Error(data.error || "Failed to vote on comment");
       setComments((prev) => updateCommentVoteTree(prev, commentId, data));
     } catch (err) {
       setError(err.message || "Failed to vote on comment");
@@ -300,9 +247,7 @@ export default function PostPage() {
 
   const handleCreateComment = async (parentCommentId = null) => {
     const content = parentCommentId ? replyContent.trim() : newComment.trim();
-    if (!content) {
-      return;
-    }
+    if (!content) return;
 
     setIsSubmittingComment(true);
     try {
@@ -310,16 +255,10 @@ export default function PostPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({
-          content,
-          parent_comment_id: parentCommentId
-        })
+        body: JSON.stringify({ content, parent_comment_id: parentCommentId })
       });
       const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error || "Failed to create comment");
-      }
+      if (!res.ok) throw new Error(data.error || "Failed to create comment");
 
       if (parentCommentId) {
         setReplyContent("");
@@ -338,15 +277,37 @@ export default function PostPage() {
     }
   };
 
+  const handleDeletePost = async () => {
+    if (!window.confirm("Delete this post?")) return;
+    const res = await fetch(`http://localhost:5000/api/posts/${id}`, {
+      method: "DELETE",
+      credentials: "include"
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      setError(data.error || "Failed to delete post");
+      return;
+    }
+    navigate(`/c/${post.community_id}`);
+  };
+
+  const handleDeleteComment = async (commentId) => {
+    if (!window.confirm("Delete this comment?")) return;
+    const res = await fetch(`http://localhost:5000/api/posts/comments/${commentId}`, {
+      method: "DELETE",
+      credentials: "include"
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      setError(data.error || "Failed to delete comment");
+      return;
+    }
+    await Promise.all([refreshComments(), refreshPost()]);
+  };
+
   if (loading) return <div className="post-page-loading">Loading post...</div>;
-
-  if (error && !post) {
-    return <div className="post-page-error">{error}</div>;
-  }
-
-  if (!post) {
-    return <div className="post-page-error">Post not found.</div>;
-  }
+  if (error && !post) return <div className="post-page-error">{error}</div>;
+  if (!post) return <div className="post-page-error">Post not found.</div>;
 
   return (
     <div className="post-page">
@@ -355,15 +316,16 @@ export default function PostPage() {
           <Link to={`/c/${post.community_id}`} className="post-community-link">
             c/{post.community_name}
           </Link>
-          <span className="separator">•</span>
-          <span>Posted by u/{post.author_name}</span>
+          <span className="separator">|</span>
+          <span>
+            Posted by <Link to={`/u/${post.author_name}`} className="post-author-link">u/{post.author_name}</Link>
+          </span>
         </div>
         <h1 className="post-page-title">{post.title}</h1>
-        <p className="post-page-content">{post.content}</p>
 
-        {post.media && post.media.length > 0 && (
-          <MediaCarousel media={post.media} />
-        )}
+        {post.media && post.media.length > 0 && <MediaViewer media={post.media} />}
+
+        <p className="post-page-content">{post.content}</p>
 
         <div className="post-footer">
           <VoteControls
@@ -373,6 +335,12 @@ export default function PostPage() {
             onVote={handlePostVote}
           />
           <CommentBadge count={post.comment_count} />
+          <ShareBox shareType="post" shareId={post.id} />
+          {post.author_id === user?.id && (
+            <button type="button" className="comment-cancel-btn danger" onClick={handleDeletePost}>
+              Delete Post
+            </button>
+          )}
         </div>
       </div>
 
@@ -415,11 +383,7 @@ export default function PostPage() {
             </div>
           </form>
         ) : (
-          <button
-            type="button"
-            className="comment-composer-trigger"
-            onClick={() => setShowCommentComposer(true)}
-          >
+          <button type="button" className="comment-composer-trigger" onClick={() => setShowCommentComposer(true)}>
             Join the conversation
           </button>
         )}
@@ -434,6 +398,7 @@ export default function PostPage() {
                 comment={comment}
                 onVote={handleCommentVote}
                 onSubmitReply={handleCreateComment}
+                onDeleteComment={handleDeleteComment}
                 replyingTo={replyingTo}
                 setReplyingTo={setReplyingTo}
                 replyContent={replyContent}

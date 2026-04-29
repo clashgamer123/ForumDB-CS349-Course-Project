@@ -103,6 +103,20 @@
   resize: vertical;
 }
 
+.form-check {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  font-family: 'Inter', sans-serif;
+  color: #c7d0da;
+  font-size: 0.9rem;
+}
+
+.form-check input {
+  width: 1rem;
+  height: 1rem;
+}
+
 .form-field input:focus,
 .form-field textarea:focus {
   border-color: #ff6a33;
@@ -205,6 +219,19 @@
 .community-card-link.locked {
   color: #eef2f6;
   cursor: default;
+}
+
+.community-privacy-pill {
+  display: inline-flex;
+  margin-left: 0.55rem;
+  padding: 0.18rem 0.5rem;
+  border: 1px solid #465263;
+  border-radius: 999px;
+  color: #9cccff;
+  background: #29354c;
+  font-family: 'Inter', sans-serif;
+  font-size: 0.72rem;
+  font-weight: 700;
 }
 
 .community-card-display {

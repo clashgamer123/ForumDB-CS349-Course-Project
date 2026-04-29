@@ -12,6 +12,7 @@ export default function Communities() {
   const [newName, setNewName] = useState("");
   const [newDisplayName, setNewDisplayName] = useState("");
   const [newDescription, setNewDescription] = useState("");
+  const [isPrivate, setIsPrivate] = useState(false);
   const [createError, setCreateError] = useState("");
 
   useEffect(() => {
@@ -21,7 +22,7 @@ export default function Communities() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const allRes = await fetch("http://localhost:5000/api/communities/");
+      const allRes = await fetch("http://localhost:5000/api/communities/", { credentials: "include" });
       const allData = await allRes.json();
       setAllCommunities(allData);
 
@@ -55,7 +56,8 @@ export default function Communities() {
         body: JSON.stringify({
           name: newName.replace(/\s+/g, '_'),
           display_name: newDisplayName,
-          description: newDescription
+          description: newDescription,
+          is_private: isPrivate
         })
       });
 
@@ -65,6 +67,7 @@ export default function Communities() {
         setNewName("");
         setNewDisplayName("");
         setNewDescription("");
+        setIsPrivate(false);
         setShowCreateForm(false);
         fetchData();
       } else {
@@ -128,6 +131,14 @@ export default function Communities() {
                 rows="3"
               />
             </div>
+            <label className="form-check">
+              <input
+                type="checkbox"
+                checked={isPrivate}
+                onChange={(e) => setIsPrivate(e.target.checked)}
+              />
+              Private community
+            </label>
             <button type="submit" className="form-submit-btn">
               Create c/{newName ? newName.replace(/\s+/g, '_') : "..."}
             </button>
@@ -154,6 +165,7 @@ export default function Communities() {
               {myCommunities.map(c => (
                 <li key={c.id} className="community-card">
                   <Link to={`/c/${c.id}`} className="community-card-link">c/{c.name}</Link>
+                  <span className="community-privacy-pill">{c.is_private ? "Private" : "Public"}</span>
                   <p className="community-card-display">{c.display_name}</p>
                   <p className="community-card-desc">{c.description}</p>
                   <button onClick={() => handleJoinLeave(c.id, false)} className="leave-btn">Leave</button>
@@ -174,7 +186,12 @@ export default function Communities() {
             <ul className="communities-list">
               {filteredCommunities.map(c => (
                 <li key={c.id} className="community-card">
-                  <span className="community-card-link locked">c/{c.name}</span>
+                  {c.is_private ? (
+                    <span className="community-card-link locked">c/{c.name}</span>
+                  ) : (
+                    <Link to={`/c/${c.id}`} className="community-card-link">c/{c.name}</Link>
+                  )}
+                  <span className="community-privacy-pill">{c.is_private ? "Private" : "Public"}</span>
                   <p className="community-card-display">{c.display_name}</p>
                   <p className="community-card-desc">{c.description}</p>
                   <div className="community-card-footer">

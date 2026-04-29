@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
+import MediaViewer from "./MediaViewer";
+import ShareBox from "./ShareBox";
 import "../styles/CommunityPage.css";
 
 const SORT_OPTIONS = [
@@ -24,54 +26,6 @@ function CommentBadge({ count }) {
       </svg>
       <span>{count}</span>
     </span>
-  );
-}
-
-function MediaCarousel({ media }) {
-  const [currentIndex, setCurrentIndex] = useState(0);
-
-  useEffect(() => {
-    setCurrentIndex(0);
-  }, [media]);
-
-  const next = () => {
-    setCurrentIndex((prev) => (prev + 1) % media.length);
-  };
-
-  const prev = () => {
-    setCurrentIndex((prev) => (prev === 0 ? media.length - 1 : prev - 1));
-  };
-
-  const current = media[currentIndex];
-
-  return (
-    <div className="carousel">
-      <div className="carousel-media">
-        {current.media_type.startsWith("image") ? (
-          <img src={`http://localhost:5000${current.media_url}`} alt="" />
-        ) : (
-          <video controls>
-            <source src={`http://localhost:5000${current.media_url}`} />
-          </video>
-        )}
-      </div>
-
-      {media.length > 1 && (
-        <button type="button" className="carousel-btn left" onClick={prev} aria-label="Previous media">
-          {"<"}
-        </button>
-      )}
-
-      {media.length > 1 && (
-        <button type="button" className="carousel-btn right" onClick={next} aria-label="Next media">
-          {">"}
-        </button>
-      )}
-
-      <div className="carousel-counter">
-        {currentIndex + 1}/{media.length}
-      </div>
-    </div>
   );
 }
 
@@ -125,6 +79,9 @@ export default function CommunityPage() {
       const postsData = await postsRes.json();
 
       if (!communityRes.ok) {
+        if (communityData.community) {
+          setCommunity(communityData.community);
+        }
         throw new Error(communityData.error || "Failed to load community");
       }
 
@@ -138,11 +95,25 @@ export default function CommunityPage() {
     } catch (err) {
       console.error("Failed to fetch community page", err);
       setError(err.message || "Unable to load community right now.");
-      setCommunity(null);
+      setCommunity((prev) => prev);
       setPosts([]);
       setShowCreateForm(false);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleJoinCommunity = async () => {
+    try {
+      const res = await fetch(`http://localhost:5000/api/communities/${id}/join`, {
+        method: "POST",
+        credentials: "include"
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to join community");
+      await fetchCommunityPage(sortMode, searchQuery);
+    } catch (err) {
+      setError(err.message || "Failed to join community");
     }
   };
 
@@ -263,17 +234,31 @@ export default function CommunityPage() {
           <div>
             <p className="community-handle">c/{community?.name || id}</p>
             <h1>{community?.display_name || `Community #${id}`}</h1>
+            <p className="community-privacy">
+              {community?.is_private ? "Private community" : "Public community"}
+              {community?.is_joined ? " | Joined" : " | Not joined"}
+            </p>
             {community?.description && (
               <p className="community-description">{community.description}</p>
             )}
           </div>
-          <button
-            type="button"
-            className={`community-create-toggle ${showCreateForm ? "cancel" : ""}`}
-            onClick={() => setShowCreateForm((prev) => !prev)}
-          >
-            {showCreateForm ? "Close" : "Create Post"}
-          </button>
+          <div className="community-actions">
+            {!community?.is_joined && (
+              <button type="button" className="community-create-toggle secondary" onClick={handleJoinCommunity}>
+                Join
+              </button>
+            )}
+            {(!community?.is_private || community?.is_joined) && (
+              <button
+                type="button"
+                className={`community-create-toggle ${showCreateForm ? "cancel" : ""}`}
+                onClick={() => setShowCreateForm((prev) => !prev)}
+              >
+                {showCreateForm ? "Close" : "Create Post"}
+              </button>
+            )}
+            {community && <ShareBox shareType="community" shareId={community.id} buttonLabel="Share" />}
+          </div>
         </div>
       </div>
 
@@ -287,13 +272,6 @@ export default function CommunityPage() {
               value={newTitle}
               onChange={(event) => setNewTitle(event.target.value)}
               required
-            />
-            <textarea
-              placeholder="What do you want to share?"
-              value={newContent}
-              onChange={(event) => setNewContent(event.target.value)}
-              required
-              rows="4"
             />
 
             <div className="media-upload-section">
@@ -312,7 +290,15 @@ export default function CommunityPage() {
               {uploading && <p className="uploading-text">Uploading...</p>}
             </div>
 
-            {mediaItems.length > 0 && <MediaCarousel media={mediaItems} />}
+            {mediaItems.length > 0 && <MediaViewer media={mediaItems} />}
+
+            <textarea
+              placeholder="Write the context after your media"
+              value={newContent}
+              onChange={(event) => setNewContent(event.target.value)}
+              required
+              rows="4"
+            />
 
             <button type="submit" className="create-post-submit-btn">
               Submit Post
@@ -358,17 +344,15 @@ export default function CommunityPage() {
               <article key={post.id} className="post-card">
                 <div className="post-meta-row">
                   <p className="post-author">
-                    Posted by <strong>u/{post.author_name}</strong>
+                    Posted by <Link to={`/u/${post.author_name}`}>u/{post.author_name}</Link>
                   </p>
                   <span className={`post-rank-tag ${sortMode}`}>{activeSortLabel}</span>
                 </div>
                 <Link to={`/posts/${post.id}`} className="post-title-link">
                   <h3 className="post-title">{post.title}</h3>
                 </Link>
-                <p className="post-content">{post.content}</p>
-
                 {post.media && post.media.length > 0 && (
-                  <MediaCarousel media={post.media} />
+                  <MediaViewer media={post.media} compact />
                 )}
 
                 <div className="post-card-footer">

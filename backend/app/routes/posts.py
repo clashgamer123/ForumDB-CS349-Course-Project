@@ -15,6 +15,30 @@ def is_community_member(cur, community_id, user_id):
     return cur.fetchone() is not None
 
 
+def fetch_community_access(cur, community_id, user_id):
+    cur.execute("""
+        SELECT
+            c.id,
+            c.is_private,
+            EXISTS (
+                SELECT 1
+                FROM community_members cm
+                WHERE cm.community_id = c.id AND cm.user_id = %s
+            ) AS is_joined
+        FROM communities c
+        WHERE c.id = %s
+    """, (user_id, community_id))
+    return cur.fetchone()
+
+
+def can_access_community(cur, community_id, user_id):
+    community = fetch_community_access(cur, community_id, user_id)
+    if not community:
+        return None
+    community["can_access"] = (not community["is_private"]) or community["is_joined"]
+    return community
+
+
 def normalize_sort_mode(sort_mode):
     normalized = (sort_mode or "hot").strip().lower()
     return normalized if normalized in VALID_FEED_SORTS else "hot"
@@ -251,6 +275,8 @@ def fetch_posts_listing(
     search_query="",
     community_id=None,
     joined_only=False,
+    home_scope=False,
+    following_authors_only=False,
     author_id=None,
     limit=50,
 ):
@@ -272,6 +298,14 @@ def fetch_posts_listing(
         """
         join_params.append(current_user_id)
 
+    if home_scope:
+        where_clauses.append("""
+            (
+                cm_home.user_id IS NOT NULL
+                OR (c.is_private = FALSE AND ucv_home.user_id IS NOT NULL)
+            )
+        """)
+
     if community_id is not None:
         where_clauses.append("p.community_id = %s")
         where_params.append(community_id)
@@ -279,6 +313,20 @@ def fetch_posts_listing(
     if author_id is not None:
         where_clauses.append("p.author_id = %s")
         where_params.append(author_id)
+        where_clauses.append("(c.is_private = FALSE OR cm_home.user_id IS NOT NULL)")
+
+    if following_authors_only:
+        where_clauses.append("""
+            EXISTS (
+                SELECT 1
+                FROM user_follows uf
+                WHERE uf.follower_id = %s
+                  AND uf.following_id = p.author_id
+                  AND uf.status = 'accepted'
+            )
+        """)
+        where_params.append(current_user_id)
+        where_clauses.append("(c.is_private = FALSE OR cm_home.user_id IS NOT NULL)")
 
     search_rank_sql = "0::real AS search_rank"
     if search_query:
@@ -321,9 +369,14 @@ def fetch_posts_listing(
             p.content,
             p.created_at,
             p.community_id,
+            p.author_id,
             u.username AS author_name,
+            u.profile_pic_url AS author_profile_pic_url,
             c.name AS community_name,
             c.display_name AS community_display_name,
+            c.is_private AS community_is_private,
+            COALESCE(cm_home.user_id IS NOT NULL, FALSE) AS is_joined,
+            COALESCE(ucv_home.visit_count, 0) AS visit_count,
             COALESCE(vt.upvote_count, 0) AS upvote_count,
             COALESCE(vt.downvote_count, 0) AS downvote_count,
             COALESCE(vt.score, 0) AS score,
@@ -334,13 +387,22 @@ def fetch_posts_listing(
         JOIN users u ON u.id = p.author_id
         JOIN communities c ON c.id = p.community_id
         {membership_join}
+        LEFT JOIN community_members cm_home
+          ON cm_home.community_id = c.id AND cm_home.user_id = %s
+        LEFT JOIN user_community_visits ucv_home
+          ON ucv_home.community_id = c.id AND ucv_home.user_id = %s
         LEFT JOIN vote_totals vt ON vt.post_id = p.id
         LEFT JOIN comment_totals ct ON ct.post_id = p.id
         LEFT JOIN current_user_votes uv ON uv.post_id = p.id
         WHERE {" AND ".join(where_clauses)}
-        ORDER BY {build_post_order_clause(sort_mode, bool(search_query))}
+        ORDER BY
+            CASE
+                WHEN {str(bool(home_scope)).upper()} AND ucv_home.user_id IS NOT NULL THEN 1
+                ELSE 0
+            END DESC,
+            {build_post_order_clause(sort_mode, bool(search_query))}
         LIMIT {int(limit)}
-    """, [current_user_id] + select_params + join_params + where_params)
+    """, [current_user_id] + select_params + join_params + [current_user_id, current_user_id] + where_params)
 
     posts = cur.fetchall()
     attach_media_to_posts(cur, posts)
@@ -366,6 +428,7 @@ def search_home_communities(cur, current_user_id, search_query, limit=6):
             c.name,
             c.display_name,
             c.description,
+            c.is_private,
             c.members_count,
             c.created_at,
             EXISTS (
@@ -447,8 +510,11 @@ def create_post():
     cur = db.cursor()
 
     try:
-        if not is_community_member(cur, data['community_id'], session['user_id']):
-            return jsonify({"error": "Join this community before posting"}), 403
+        community = can_access_community(cur, data['community_id'], session['user_id'])
+        if not community:
+            return jsonify({"error": "Community not found"}), 404
+        if community['is_private'] and not community['is_joined']:
+            return jsonify({"error": "Join this private community before posting"}), 403
 
         cur.execute("""
             INSERT INTO posts (title, content, author_id, community_id)
@@ -481,6 +547,8 @@ def get_home_feed():
 
     sort_mode = normalize_sort_mode(request.args.get("sort"))
     search_query = (request.args.get("q", "") or "").strip()
+    feed_filter = (request.args.get("filter", "all") or "all").strip().lower()
+    following_only = feed_filter == "following"
 
     db = get_db()
     cur = db.cursor()
@@ -491,7 +559,8 @@ def get_home_feed():
             session['user_id'],
             sort_mode=sort_mode,
             search_query=search_query,
-            joined_only=True,
+            home_scope=not following_only,
+            following_authors_only=following_only,
             limit=50,
         )
         communities = search_home_communities(cur, session['user_id'], search_query)
@@ -499,6 +568,7 @@ def get_home_feed():
         return jsonify({
             "sort": sort_mode,
             "query": search_query,
+            "filter": "following" if following_only else "all",
             "communities": communities,
             "posts": posts,
         }), 200
@@ -518,8 +588,11 @@ def get_community_posts(community_id):
     cur = db.cursor()
 
     try:
-        if not is_community_member(cur, community_id, session['user_id']):
-            return jsonify({"error": "Join this community to view posts"}), 403
+        community = can_access_community(cur, community_id, session['user_id'])
+        if not community:
+            return jsonify({"error": "Community not found"}), 404
+        if not community["can_access"]:
+            return jsonify({"error": "Join this private community to view posts"}), 403
 
         posts = fetch_posts_listing(
             cur,
@@ -546,16 +619,30 @@ def get_single_post(post_id):
 
     try:
         cur.execute("""
-            SELECT p.*, u.username AS author_name, c.name AS community_name, c.display_name AS community_display_name
+            SELECT
+                p.*,
+                u.username AS author_name,
+                u.profile_pic_url AS author_profile_pic_url,
+                c.name AS community_name,
+                c.display_name AS community_display_name,
+                c.is_private AS community_is_private,
+                EXISTS (
+                    SELECT 1
+                    FROM community_members cm
+                    WHERE cm.community_id = c.id AND cm.user_id = %s
+                ) AS is_joined
             FROM posts p
             JOIN users u ON p.author_id = u.id
             JOIN communities c ON p.community_id = c.id
             WHERE p.id = %s
-        """, (post_id,))
+        """, (session.get('user_id'), post_id))
         post = cur.fetchone()
 
         if not post:
             return jsonify({"error": "Post not found"}), 404
+
+        if post["community_is_private"] and not post["is_joined"]:
+            return jsonify({"error": "Join this private community to view this post"}), 403
 
         enrich_post(cur, post, session.get('user_id'))
         return jsonify(post), 200
@@ -569,6 +656,13 @@ def get_post_comments(post_id):
     cur = db.cursor()
 
     try:
+        cur.execute("SELECT community_id FROM posts WHERE id = %s", (post_id,))
+        post = cur.fetchone()
+        if not post:
+            return jsonify({"error": "Post not found"}), 404
+        access = can_access_community(cur, post["community_id"], session.get('user_id'))
+        if access and not access["can_access"]:
+            return jsonify({"error": "Join this private community to view comments"}), 403
         comments = fetch_comments_for_post(cur, post_id, session.get('user_id'))
         return jsonify(comments), 200
     finally:
@@ -591,9 +685,14 @@ def create_comment(post_id):
     cur = db.cursor()
 
     try:
-        cur.execute("SELECT id FROM posts WHERE id = %s", (post_id,))
-        if not cur.fetchone():
+        cur.execute("SELECT id, community_id FROM posts WHERE id = %s", (post_id,))
+        post = cur.fetchone()
+        if not post:
             return jsonify({"error": "Post not found"}), 404
+
+        access = can_access_community(cur, post["community_id"], session['user_id'])
+        if access and not access["can_access"]:
+            return jsonify({"error": "Join this private community to comment"}), 403
 
         if parent_comment_id is not None:
             cur.execute("""
@@ -616,6 +715,60 @@ def create_comment(post_id):
     except Exception as e:
         db.rollback()
         return jsonify({"error": f"Failed to create comment: {str(e)}"}), 400
+    finally:
+        cur.close()
+
+
+@posts_bp.route('/<int:post_id>', methods=['DELETE'])
+def delete_post(post_id):
+    if 'user_id' not in session:
+        return jsonify({"error": "Unauthorized"}), 401
+
+    db = get_db()
+    cur = db.cursor()
+
+    try:
+        cur.execute("""
+            DELETE FROM posts
+            WHERE id = %s AND author_id = %s
+            RETURNING id
+        """, (post_id, session['user_id']))
+        deleted = cur.fetchone()
+        if not deleted:
+            db.rollback()
+            return jsonify({"error": "Post not found or you cannot delete it"}), 404
+        db.commit()
+        return jsonify({"message": "Post deleted"}), 200
+    except Exception as e:
+        db.rollback()
+        return jsonify({"error": f"Failed to delete post: {str(e)}"}), 400
+    finally:
+        cur.close()
+
+
+@posts_bp.route('/comments/<int:comment_id>', methods=['DELETE'])
+def delete_comment(comment_id):
+    if 'user_id' not in session:
+        return jsonify({"error": "Unauthorized"}), 401
+
+    db = get_db()
+    cur = db.cursor()
+
+    try:
+        cur.execute("""
+            DELETE FROM comments
+            WHERE id = %s AND author_id = %s
+            RETURNING id
+        """, (comment_id, session['user_id']))
+        deleted = cur.fetchone()
+        if not deleted:
+            db.rollback()
+            return jsonify({"error": "Comment not found or you cannot delete it"}), 404
+        db.commit()
+        return jsonify({"message": "Comment deleted"}), 200
+    except Exception as e:
+        db.rollback()
+        return jsonify({"error": f"Failed to delete comment: {str(e)}"}), 400
     finally:
         cur.close()
 

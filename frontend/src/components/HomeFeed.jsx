@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import MediaViewer, { mediaSrc } from "./MediaViewer";
 import "../styles/HomeFeed.css";
 
 const SORT_OPTIONS = [
@@ -24,54 +25,6 @@ function CommentBadge({ count }) {
       </svg>
       <span>{count}</span>
     </span>
-  );
-}
-
-function MediaCarousel({ media }) {
-  const [currentIndex, setCurrentIndex] = useState(0);
-
-  useEffect(() => {
-    setCurrentIndex(0);
-  }, [media]);
-
-  const next = () => {
-    setCurrentIndex((prev) => (prev + 1) % media.length);
-  };
-
-  const prev = () => {
-    setCurrentIndex((prev) => (prev === 0 ? media.length - 1 : prev - 1));
-  };
-
-  const current = media[currentIndex];
-
-  return (
-    <div className="carousel">
-      <div className="carousel-media">
-        {current.media_type.startsWith("image") ? (
-          <img src={`http://localhost:5000${current.media_url}`} alt="" />
-        ) : (
-          <video controls>
-            <source src={`http://localhost:5000${current.media_url}`} />
-          </video>
-        )}
-      </div>
-
-      {media.length > 1 && (
-        <button type="button" className="carousel-btn left" onClick={prev} aria-label="Previous media">
-          {"<"}
-        </button>
-      )}
-
-      {media.length > 1 && (
-        <button type="button" className="carousel-btn right" onClick={next} aria-label="Next media">
-          {">"}
-        </button>
-      )}
-
-      <div className="carousel-counter">
-        {currentIndex + 1}/{media.length}
-      </div>
-    </div>
   );
 }
 
@@ -104,9 +57,9 @@ function CommunitySearchCard({ community, onJoin, joiningCommunityId }) {
       </div>
       <div className="community-search-footer">
         <span className="community-search-members">
-          {community.members_count} members
+          {community.members_count} members | {community.is_private ? "Private" : "Public"}
         </span>
-        {community.is_joined ? (
+        {community.is_joined || !community.is_private ? (
           <Link to={`/c/${community.id}`} className="community-search-open">
             Open
           </Link>
@@ -128,38 +81,50 @@ function CommunitySearchCard({ community, onJoin, joiningCommunityId }) {
 export default function HomeFeed() {
   const [posts, setPosts] = useState([]);
   const [communities, setCommunities] = useState([]);
+  const [users, setUsers] = useState([]);
   const [sortMode, setSortMode] = useState("hot");
+  const [feedFilter, setFeedFilter] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [joiningCommunityId, setJoiningCommunityId] = useState(null);
 
-  const loadFeed = async (activeSort = sortMode, activeQuery = searchQuery) => {
+  const loadFeed = async (activeSort = sortMode, activeQuery = searchQuery, activeFilter = feedFilter) => {
     setLoading(true);
     try {
-      const params = new URLSearchParams({ sort: activeSort });
+      const params = new URLSearchParams({ sort: activeSort, filter: activeFilter });
       const trimmedQuery = activeQuery.trim();
       if (trimmedQuery) {
         params.set("q", trimmedQuery);
       }
 
-      const res = await fetch(`http://localhost:5000/api/posts/feed?${params.toString()}`, {
+      const feedRequest = fetch(`http://localhost:5000/api/posts/feed?${params.toString()}`, {
         credentials: "include"
       });
+      const usersRequest = trimmedQuery
+        ? fetch(`http://localhost:5000/api/users/search?q=${encodeURIComponent(trimmedQuery)}`, {
+            credentials: "include"
+          })
+        : Promise.resolve(null);
+
+      const [res, usersRes] = await Promise.all([feedRequest, usersRequest]);
       const data = await res.json();
 
       if (!res.ok) {
         throw new Error(data.error || "Failed to load feed");
       }
 
+      const usersData = usersRes ? await usersRes.json() : [];
       setPosts(Array.isArray(data.posts) ? data.posts : []);
       setCommunities(Array.isArray(data.communities) ? data.communities : []);
+      setUsers(Array.isArray(usersData) ? usersData : []);
       setError("");
     } catch (err) {
       console.error("Failed to fetch feed", err);
       setError(err.message || "Unable to load your feed right now.");
       setPosts([]);
       setCommunities([]);
+      setUsers([]);
     } finally {
       setLoading(false);
     }
@@ -167,11 +132,11 @@ export default function HomeFeed() {
 
   useEffect(() => {
     const timer = setTimeout(() => {
-      loadFeed(sortMode, searchQuery);
+      loadFeed(sortMode, searchQuery, feedFilter);
     }, 250);
 
     return () => clearTimeout(timer);
-  }, [sortMode, searchQuery]);
+  }, [sortMode, searchQuery, feedFilter]);
 
   const handleVote = async (postId, voteValue) => {
     try {
@@ -208,11 +173,30 @@ export default function HomeFeed() {
         throw new Error(data.error || "Failed to join community");
       }
 
-      await loadFeed(sortMode, searchQuery);
+      await loadFeed(sortMode, searchQuery, feedFilter);
     } catch (err) {
       setError(err.message || "Failed to join community");
     } finally {
       setJoiningCommunityId(null);
+    }
+  };
+
+  const handleFollowUser = async (targetUser) => {
+    try {
+      const method = targetUser.follow_status === "none" ? "POST" : "DELETE";
+      const res = await fetch(`http://localhost:5000/api/users/${targetUser.id}/follow`, {
+        method,
+        credentials: "include"
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to update follow");
+      }
+
+      await loadFeed(sortMode, searchQuery, feedFilter);
+    } catch (err) {
+      setError(err.message || "Failed to update follow");
     }
   };
 
@@ -230,8 +214,8 @@ export default function HomeFeed() {
           <h1>{isSearching ? `Results for "${trimmedQuery}"` : "Your personalized feed"}</h1>
           <p className="feed-subtitle">
             {isSearching
-              ? "Matching communities appear first, followed by posts from communities you have already joined."
-              : "Browse ranked posts from the communities you follow."}
+              ? "Matching communities appear first, followed by posts from joined communities and public communities you visited."
+              : "Browse ranked posts from joined communities plus public communities you have visited."}
           </p>
         </div>
 
@@ -247,6 +231,23 @@ export default function HomeFeed() {
       </div>
 
       <SortTabs activeSort={sortMode} onChange={setSortMode} />
+
+      <div className="feed-filter-bar">
+        <button
+          type="button"
+          className={`feed-filter-pill ${feedFilter === "all" ? "active" : ""}`}
+          onClick={() => setFeedFilter("all")}
+        >
+          All visible posts
+        </button>
+        <button
+          type="button"
+          className={`feed-filter-pill ${feedFilter === "following" ? "active" : ""}`}
+          onClick={() => setFeedFilter("following")}
+        >
+          Following only
+        </button>
+      </div>
 
       {error && <p className="feed-empty">{error}</p>}
 
@@ -274,11 +275,42 @@ export default function HomeFeed() {
         </section>
       )}
 
+      {!error && isSearching && (
+        <section className="feed-section">
+          <div className="feed-section-header">
+            <h2>Users</h2>
+            <span className="feed-section-count">{users.length}</span>
+          </div>
+
+          {users.length === 0 ? (
+            <p className="feed-empty feed-empty-compact">No users matched that search.</p>
+          ) : (
+            <div className="user-search-grid">
+              {users.map((resultUser) => (
+                <article key={resultUser.id} className="user-search-card">
+                  <Link to={`/u/${resultUser.username}`} className="user-search-main">
+                    <img src={mediaSrc(resultUser.profile_pic_url)} alt="" />
+                    <span>u/{resultUser.username}</span>
+                  </Link>
+                  <button type="button" onClick={() => handleFollowUser(resultUser)}>
+                    {resultUser.follow_status === "none"
+                      ? (resultUser.is_private ? "Request" : "Follow")
+                      : resultUser.follow_status === "pending"
+                        ? "Cancel"
+                        : "Unfollow"}
+                  </button>
+                </article>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
+
       {!error && (
         <section className="feed-section">
           <div className="feed-section-header">
             <div>
-              <h2>{isSearching ? "Posts from joined communities" : "Posts"}</h2>
+              <h2>{isSearching ? "Relevant posts" : "Posts"}</h2>
               <p className="feed-section-note">{activeSortLabel} ranking</p>
             </div>
             <span className="feed-section-count">{posts.length}</span>
@@ -287,8 +319,10 @@ export default function HomeFeed() {
           {posts.length === 0 ? (
             <p className="feed-empty">
               {isSearching
-                ? "No joined-community posts matched your search yet."
-                : "Your feed is empty. Join a few communities to get started."}
+                ? "No visible posts matched your search yet."
+                : feedFilter === "following"
+                  ? "No posts from followed users yet."
+                  : "Your feed is empty. Join or visit a few communities to get started."}
             </p>
           ) : (
             <div className="feed-list">
@@ -297,16 +331,16 @@ export default function HomeFeed() {
                   <div className="feed-post-meta">
                     <span className="community">c/{post.community_name}</span>
                     <span className="separator">|</span>
-                    <span>Posted by u/{post.author_name}</span>
+                    <span>
+                      Posted by <Link to={`/u/${post.author_name}`} className="feed-user-link">u/{post.author_name}</Link>
+                    </span>
                     <span className={`feed-rank-tag ${sortMode}`}>{activeSortLabel}</span>
                   </div>
                   <Link to={`/posts/${post.id}`} className="feed-post-link">
                     <h3 className="feed-post-title">{post.title}</h3>
                   </Link>
-                  <p className="feed-post-content">{post.content}</p>
-
                   {post.media && post.media.length > 0 && (
-                    <MediaCarousel media={post.media} />
+                    <MediaViewer media={post.media} compact />
                   )}
 
                   <div className="feed-post-footer">

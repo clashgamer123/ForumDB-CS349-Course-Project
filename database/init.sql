@@ -7,6 +7,10 @@ CREATE TABLE users (
     id SERIAL PRIMARY KEY,
     username VARCHAR(255) NOT NULL UNIQUE,
     bio VARCHAR(255),
+    profile_pic_url TEXT,
+    is_private BOOLEAN DEFAULT FALSE,
+    display_name VARCHAR(255),
+    location VARCHAR(255),
     email VARCHAR(255) NOT NULL UNIQUE,
     hash_password VARCHAR(255) NOT NULL,
     age INTEGER,
@@ -18,10 +22,50 @@ CREATE TABLE communities (
     name VARCHAR(255) NOT NULL UNIQUE,
     display_name VARCHAR(255) NOT NULL,
     description TEXT,
+    is_private BOOLEAN DEFAULT FALSE,
     created_by INTEGER NOT NULL,
     members_count INTEGER DEFAULT 1 CHECK (members_count >= 0),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE user_follows (
+    follower_id INTEGER NOT NULL,
+    following_id INTEGER NOT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'accepted',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (follower_id, following_id),
+    FOREIGN KEY (follower_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (following_id) REFERENCES users(id) ON DELETE CASCADE,
+    CHECK (follower_id <> following_id),
+    CHECK (status IN ('pending', 'accepted'))
+);
+
+CREATE TABLE user_community_visits (
+    user_id INTEGER NOT NULL,
+    community_id INTEGER NOT NULL,
+    visit_count INTEGER DEFAULT 1 CHECK (visit_count >= 0),
+    last_visited_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id, community_id),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (community_id) REFERENCES communities(id) ON DELETE CASCADE
+);
+
+CREATE TABLE messages (
+    id SERIAL PRIMARY KEY,
+    sender_id INTEGER NOT NULL,
+    recipient_id INTEGER NOT NULL,
+    content TEXT,
+    media_url TEXT,
+    media_type VARCHAR(50),
+    share_type VARCHAR(20),
+    share_id INTEGER,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (sender_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (recipient_id) REFERENCES users(id) ON DELETE CASCADE,
+    CHECK (sender_id <> recipient_id),
+    CHECK (share_type IS NULL OR share_type IN ('community', 'post'))
 );
 
 CREATE TABLE community_members (
@@ -91,6 +135,11 @@ CREATE TABLE comment_votes (
 );
 
 CREATE INDEX idx_community_members_user_id ON community_members(user_id);
+CREATE INDEX idx_user_follows_following_status ON user_follows(following_id, status);
+CREATE INDEX idx_user_follows_follower_status ON user_follows(follower_id, status);
+CREATE INDEX idx_user_community_visits_user_last ON user_community_visits(user_id, last_visited_at DESC);
+CREATE INDEX idx_messages_sender_recipient_created ON messages(sender_id, recipient_id, created_at DESC);
+CREATE INDEX idx_messages_recipient_sender_created ON messages(recipient_id, sender_id, created_at DESC);
 CREATE INDEX idx_posts_author_id ON posts(author_id);
 CREATE INDEX idx_posts_community_id_created_at ON posts(community_id, created_at DESC);
 CREATE INDEX idx_posts_search_vector ON posts USING GIN(search_vector);

@@ -12,6 +12,49 @@ def is_community_member(cur, community_id, user_id):
     """, (community_id, user_id))
     return cur.fetchone() is not None
 
+
+def record_community_visit(cur, community_id, user_id):
+    cur.execute("""
+        INSERT INTO user_community_visits (user_id, community_id, visit_count, last_visited_at)
+        VALUES (%s, %s, 1, CURRENT_TIMESTAMP)
+        ON CONFLICT (user_id, community_id)
+        DO UPDATE SET
+            visit_count = user_community_visits.visit_count + 1,
+            last_visited_at = CURRENT_TIMESTAMP
+    """, (user_id, community_id))
+
+
+def annotate_communities(cur, communities, user_id):
+    if not communities or not user_id:
+        for community in communities:
+            community["is_joined"] = False
+            community["visit_count"] = 0
+        return communities
+
+    community_ids = [community["id"] for community in communities]
+    cur.execute("""
+        SELECT
+            c.id,
+            EXISTS (
+                SELECT 1
+                FROM community_members cm
+                WHERE cm.community_id = c.id AND cm.user_id = %s
+            ) AS is_joined,
+            COALESCE(ucv.visit_count, 0) AS visit_count
+        FROM communities c
+        LEFT JOIN user_community_visits ucv
+          ON ucv.community_id = c.id AND ucv.user_id = %s
+        WHERE c.id = ANY(%s)
+    """, (user_id, user_id, community_ids))
+
+    meta_by_id = {row["id"]: row for row in cur.fetchall()}
+    for community in communities:
+        meta = meta_by_id.get(community["id"], {})
+        community["is_joined"] = bool(meta.get("is_joined"))
+        community["visit_count"] = meta.get("visit_count", 0)
+    return communities
+
+
 # 1. Get all communities (for browsing)
 @communities_bp.route('/', methods=['GET'])
 def get_all_communities():
@@ -19,6 +62,7 @@ def get_all_communities():
     cur = db.cursor()
     cur.execute("SELECT * FROM communities ORDER BY created_at DESC")
     communities = cur.fetchall()
+    annotate_communities(cur, communities, session.get('user_id'))
     cur.close()
     return jsonify(communities), 200
 
@@ -32,8 +76,11 @@ def get_my_communities():
     cur = db.cursor()
     # INNER JOIN to get community details only for the ones the user joined
     cur.execute("""
-        SELECT c.* FROM communities c
+        SELECT c.*, TRUE AS is_joined, COALESCE(ucv.visit_count, 0) AS visit_count
+        FROM communities c
         JOIN community_members cm ON c.id = cm.community_id
+        LEFT JOIN user_community_visits ucv
+          ON ucv.community_id = c.id AND ucv.user_id = cm.user_id
         WHERE cm.user_id = %s
     """, (session['user_id'],))
     communities = cur.fetchall()
@@ -49,21 +96,39 @@ def get_single_community(community_id):
     db = get_db()
     cur = db.cursor()
 
-    if not is_community_member(cur, community_id, session['user_id']):
-        cur.close()
-        return jsonify({"error": "Join this community to open it"}), 403
-
     cur.execute("""
-        SELECT c.*, u.username AS creator_name
+        SELECT
+            c.*,
+            u.username AS creator_name,
+            EXISTS (
+                SELECT 1
+                FROM community_members cm
+                WHERE cm.community_id = c.id AND cm.user_id = %s
+            ) AS is_joined,
+            COALESCE(ucv.visit_count, 0) AS visit_count
         FROM communities c
         JOIN users u ON u.id = c.created_by
+        LEFT JOIN user_community_visits ucv
+          ON ucv.community_id = c.id AND ucv.user_id = %s
         WHERE c.id = %s
-    """, (community_id,))
+    """, (session['user_id'], session['user_id'], community_id))
     community = cur.fetchone()
-    cur.close()
 
     if not community:
+        cur.close()
         return jsonify({"error": "Community not found"}), 404
+
+    if community['is_private'] and not community['is_joined']:
+        cur.close()
+        return jsonify({
+            "error": "This is a private community. Join it to open posts.",
+            "community": community
+        }), 403
+
+    record_community_visit(cur, community_id, session['user_id'])
+    db.commit()
+    community["visit_count"] = (community.get("visit_count") or 0) + 1
+    cur.close()
 
     return jsonify(community), 200
 
@@ -80,9 +145,15 @@ def create_community():
     try:
         # Create the community
         cur.execute("""
-            INSERT INTO communities (name, display_name, description, created_by)
-            VALUES (%s, %s, %s, %s) RETURNING id, name, display_name
-        """, (data['name'], data['display_name'], data.get('description', ''), session['user_id']))
+            INSERT INTO communities (name, display_name, description, is_private, created_by)
+            VALUES (%s, %s, %s, %s, %s) RETURNING id, name, display_name, is_private
+        """, (
+            data['name'],
+            data['display_name'],
+            data.get('description', ''),
+            bool(data.get('is_private', False)),
+            session['user_id']
+        ))
         new_community = cur.fetchone()
         
         # Automatically make the creator a member
@@ -96,6 +167,39 @@ def create_community():
     except Exception as e:
         db.rollback()
         return jsonify({"error": "Community name might already exist"}), 400
+    finally:
+        cur.close()
+
+
+@communities_bp.route('/<int:community_id>', methods=['PATCH'])
+def update_community(community_id):
+    if 'user_id' not in session:
+        return jsonify({"error": "Unauthorized"}), 401
+
+    data = request.json or {}
+    db = get_db()
+    cur = db.cursor()
+
+    try:
+        cur.execute("SELECT created_by FROM communities WHERE id = %s", (community_id,))
+        community = cur.fetchone()
+        if not community:
+            return jsonify({"error": "Community not found"}), 404
+        if community['created_by'] != session['user_id']:
+            return jsonify({"error": "Only the creator can update community privacy"}), 403
+
+        cur.execute("""
+            UPDATE communities
+            SET is_private = %s
+            WHERE id = %s
+            RETURNING *
+        """, (bool(data.get('is_private', False)), community_id))
+        updated = cur.fetchone()
+        db.commit()
+        return jsonify(updated), 200
+    except Exception as e:
+        db.rollback()
+        return jsonify({"error": f"Failed to update community: {str(e)}"}), 400
     finally:
         cur.close()
 

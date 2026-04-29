@@ -20,6 +20,8 @@ export default function Navbar({ user, setUser }) {
           <>
             <Link to="/" className="navbar-link">Home Feed</Link>
             <Link to="/communities" className="navbar-link">Communities</Link>
+            <Link to="/create" className="navbar-link">Create Post</Link>
+            <Link to="/messages" className="navbar-link">Messages</Link>
           </>
         )}
       </div>

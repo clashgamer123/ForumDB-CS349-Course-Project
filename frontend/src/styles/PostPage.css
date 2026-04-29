@@ -36,6 +36,18 @@
   text-decoration: none;
 }
 
+.post-author-link,
+.comment-meta a {
+  color: #dbe3eb;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.post-author-link:hover,
+.comment-meta a:hover {
+  color: #ff9a70;
+}
+
 .separator {
   margin: 0 0.35rem;
 }
@@ -280,6 +292,55 @@
 
 .comment-cancel-btn:hover {
   background: #394354;
+}
+
+.comment-cancel-btn.danger,
+.reply-toggle-btn.danger {
+  color: #ffb7be;
+  border-color: #7b3940;
+  background: #3a2025;
+}
+
+.share-box {
+  position: relative;
+}
+
+.share-popover {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 0.45rem);
+  left: 0;
+  width: 230px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  background: #1d232c;
+  border: 1px solid #465263;
+  border-radius: 8px;
+  padding: 0.65rem;
+  box-shadow: 0 12px 26px rgba(0, 0, 0, 0.28);
+}
+
+.share-popover input {
+  border: 1px solid #445062;
+  border-radius: 8px;
+  background: #151b23;
+  color: #eef2f6;
+  padding: 0.55rem;
+}
+
+.share-popover button {
+  border: 1px solid #3f4a59;
+  border-radius: 8px;
+  background: #242b35;
+  color: #dbe3eb;
+  padding: 0.45rem;
+  cursor: pointer;
+  text-align: left;
+}
+
+.share-popover small {
+  color: #9cccff;
 }
 
 .comment-replies {
