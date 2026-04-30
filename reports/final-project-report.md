@@ -947,6 +947,7 @@ Messaging is allowed when the sender follows the recipient and that follow is ac
 File: `MediaViewer.jsx`
 
 Used by:
+# ForumDB Final Report Notes
 
 - Home feed.
 - Community page.
@@ -1052,6 +1053,7 @@ Comment sharing has been removed.
 3. Backend checks ownership before deletion.
 
 ## 23. Security and Access Control
+This markdown file is only a working copy of the final report. The submission version is in:
 
 Implemented controls:
 
@@ -1143,6 +1145,7 @@ The app was available at:
 
 ```text
 http://localhost:3000
+reports/final-project-report.tex
 ```
 
 Backend health endpoint:

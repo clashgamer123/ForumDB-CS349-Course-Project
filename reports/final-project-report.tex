@@ -1,0 +1,148 @@
+\documentclass[11pt]{article}
+
+\usepackage[margin=0.82in]{geometry}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{enumitem}
+\usepackage[hidelinks]{hyperref}
+
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{5pt}
+\setlist[itemize]{leftmargin=1.25em, itemsep=2pt, topsep=2pt}
+\setlength{\emergencystretch}{2em}
+
+\title{\vspace{-1.5em}\textbf{ForumDB: Final Project Report}}
+\author{CS349 Course Project}
+\date{}
+
+\begin{document}
+\maketitle
+\vspace{-1.2em}
+
+\section{Motivation and Project Goal}
+
+ForumDB is a database-backed community discussion application inspired by Reddit-style forums. The motivation for the project was to build a realistic full-stack system where the database is not just used for simple storage, but also supports relationships, access control, search, ranking, and user interaction features.
+
+The main goal was to let users create communities, write posts, attach media, comment in threads, vote on content, follow other users, protect private profiles, and send messages. We wanted the project to feel like a small but usable forum rather than only a collection of isolated database tables. Because of that, we implemented both the backend API and the frontend interface.
+
+The final project uses a Flask backend, PostgreSQL database, and React frontend. Docker Compose is used to run the database, backend, and frontend together during development.
+
+\section{System Overview}
+
+The system is organized around three main ideas. First, communities organize posts and control whether discussion is public or private. Second, posts, media, comments, and votes store the discussion content and user reactions. Third, user relationships control privacy and messaging.
+
+Public communities can be opened and posted in directly. Private communities require membership before posts and comments can be viewed. Public user profiles are visible to other users, while private profiles hide posts and comments until a follow request is accepted. Messaging is also relationship-based: a user can message another user only after an accepted follow relationship exists.
+
+\begin{center}
+\begin{tabularx}{\textwidth}{@{}lX@{}}
+\toprule
+\textbf{Layer} & \textbf{Implementation} \\
+\midrule
+Frontend & React, React Router, Vite, and feature-specific CSS files. \\
+Backend & Flask REST API with route modules for auth, posts, communities, media, users, and messages. \\
+Database & PostgreSQL schema with foreign keys, indexes, full-text search, votes, follows, and messages. \\
+Runtime & Docker Compose for PostgreSQL, Flask backend on port \texttt{5000}, and React frontend on port \texttt{3000}. \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\section{Database Design}
+
+The database schema is defined in \texttt{database/init.sql}. We used a normalized relational design so that each core concept has a clear table, and relationships are represented through foreign keys or many-to-many tables.
+
+\begin{center}
+\small
+\begin{tabularx}{\textwidth}{@{}lX@{}}
+\toprule
+\textbf{Table} & \textbf{Purpose} \\
+\midrule
+\texttt{users} & Stores usernames, emails, hashed passwords, profile fields, profile pictures, and privacy settings. \\
+\texttt{communities} & Stores community name, display name, description, creator, privacy setting, and member count. \\
+\texttt{community\_members} & Represents the many-to-many relationship between users and joined communities. \\
+\texttt{user\_community\_visits} & Records public communities a user has visited, used by the home feed. \\
+\texttt{posts} & Stores post title, body, author, community, timestamp, and a generated search vector. \\
+\texttt{post\_media} & Stores image and video attachments for posts. \\
+\texttt{comments} & Stores top-level comments and nested replies using \texttt{parent\_comment\_id}. \\
+\texttt{post\_votes}, \texttt{comment\_votes} & Store one vote per user per post or comment. \\
+\texttt{user\_follows} & Stores follow relationships with \texttt{pending} and \texttt{accepted} states. \\
+\texttt{messages} & Stores private messages, optional media, and shared posts or communities. \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+The schema uses cascading deletes where appropriate. For example, deleting a post removes its media, comments, and votes. We also added indexes for common queries such as posts by community, comments by post, votes by user, message threads, follows, and full-text search. Posts use a generated PostgreSQL \texttt{tsvector} column for searching over title and content.
+
+\section{Functionality Implemented}
+
+The backend API and frontend interface were both implemented as part of the project. The major features are listed below.
+
+\begin{itemize}
+    \item \textbf{Authentication:} Users can sign up, log in, log out, and stay logged in through Flask sessions. Passwords are hashed using Werkzeug before storage.
+    \item \textbf{Communities:} Users can create public or private communities, browse communities, search communities, join and leave communities, and open community pages.
+    \item \textbf{Posts and media:} Users can create posts with a title, body/context, and image or video attachments. Media is uploaded through the backend and displayed in the frontend without cropping important content.
+    \item \textbf{Comments:} Posts support top-level comments and nested replies. Users can vote on comments and delete their own comments.
+    \item \textbf{Voting:} Posts and comments support upvotes and downvotes. The backend prevents duplicate votes by using composite primary keys.
+    \item \textbf{Home feed:} The feed supports Hot, New, Top, Rising, and Controversial sorting. It includes joined communities and public communities the user has visited.
+    \item \textbf{Search:} Users can search posts, communities, and users. Post and community search use PostgreSQL full-text search along with simple fallback matching.
+    \item \textbf{Profiles and follows:} Users can edit display name, bio, location, profile picture, and privacy setting. Private users receive follow requests that can be accepted or rejected.
+    \item \textbf{Messages:} Users can send direct text messages, media messages, and shared posts or communities to users they follow with accepted status.
+\end{itemize}
+
+\section{Code Created}
+
+The backend code is under \texttt{backend/app}. The application factory in \texttt{\_\_init\_\_.py} sets up Flask, CORS, sessions, upload serving, and route registration. The database connection helper is in \texttt{db\_control/db.py}; it opens PostgreSQL connections, returns dictionary-like query results, closes connections after requests, and includes a development helper to keep local schemas updated.
+
+Route files were created for each main area of the application:
+
+\begin{itemize}
+    \item \texttt{routes/auth.py}: signup, login, logout, and login-status checks.
+    \item \texttt{routes/communities.py}: community listing, creation, joining, leaving, search, privacy checks, and visit recording.
+    \item \texttt{routes/posts.py}: feed queries, post creation, post details, comment trees, post/comment voting, deletion, sorting, and search.
+    \item \texttt{routes/media.py}: image/video upload validation and saving.
+    \item \texttt{routes/users.py}: profiles, profile updates, user search, follow requests, and private-profile access control.
+    \item \texttt{routes/messages.py}: conversation list, message threads, sending messages, media messages, and shared post/community messages.
+\end{itemize}
+
+The frontend code is under \texttt{frontend/src}. The top-level routing is in \texttt{App.jsx}. Separate React components were created for authentication, home feed, community browsing, community pages, post details, profile pages, post creation, media viewing, sharing, messages, and the navigation bar. Each major screen has its own CSS file so the UI styles stay organized.
+
+Some of the more important implementation choices were made in SQL. The home feed builds different \texttt{ORDER BY} clauses for Hot, New, Top, Rising, and Controversial. Nested comments are loaded using recursive SQL and then converted into a tree structure for the frontend. Full-text search is used where PostgreSQL can support it directly, especially for posts and communities.
+
+\section{Access Control and Security}
+
+Several checks were implemented on the backend so that users cannot bypass rules by changing frontend requests. Most write routes require login. Private-community posts and comments require community membership. Private profiles require an accepted follow relationship before posts and comments are returned. Messaging requires an accepted follow relationship from sender to recipient.
+
+Ownership checks are also enforced. A user can delete only their own posts and comments. The vote tables prevent duplicate votes from the same user on the same post or comment. The messages table restricts shared items to posts and communities. Uploaded files are limited to supported image and video extensions.
+
+\section{Testing and Verification}
+
+Testing and verification were mainly done by running the complete application with Docker Compose. This matched how the project was developed because all three services, PostgreSQL, Flask, and React, needed to work together for most features to be tested properly.
+
+\begin{verbatim}
+docker compose up
+\end{verbatim}
+
+After testing, the containers were stopped with:
+
+\begin{verbatim}
+docker compose down
+\end{verbatim}
+
+While the containers were running, the frontend was tested in the browser and the backend API was exercised through the normal user interface. Manual testing covered the main user workflows: signup/login, creating communities, joining/leaving communities, creating posts with media, opening posts, adding replies, voting, searching, editing profiles, requesting/accepting follows, sending messages, and sharing posts or communities.
+
+Access-control behavior was also tested manually. We checked that private communities do not show posts to non-members, private profiles hide content until a follow is accepted, messaging is disabled without an accepted follow, and users cannot delete posts or comments they do not own.
+
+\section{AI Usage}
+
+AI was used minimally as a learning and reference tool, mainly to understand Flask concepts, route organization, session handling, and how Flask connects to a PostgreSQL-backed application. It was also used occasionally to clarify errors or compare possible implementation approaches.
+
+The project was not built by copy-pasting AI output. The database schema, backend routes, frontend components, debugging, and integration work were written and adjusted manually according to the project requirements. AI was treated more like an additional explanation resource, similar to documentation or examples, rather than as the main source of implementation.
+
+\section{Limitations}
+
+There are a few limitations in the current version. Uploaded media is stored on local disk, so a deployed version would need object storage or a shared upload volume. The \texttt{ensure\_schema} helper is convenient for development, but a production system should use a proper migration tool. The application also does not include a complete automated test suite; most verification was done by running the Docker Compose setup and manually testing the main workflows.
+
+\section{Conclusion}
+
+ForumDB implements the core requirements of a database-backed forum application: authenticated users, public and private communities, posts with media, threaded comments, voting, search, profiles, follow-based privacy, messaging, and feed ranking. The main database work was designing relationships that enforce membership, ownership, voting uniqueness, profile privacy, and message permissions. Overall, the project demonstrates a working full-stack application where PostgreSQL is used for both storage and application-level behavior such as search, ranking, and access control.
+
+\end{document}
